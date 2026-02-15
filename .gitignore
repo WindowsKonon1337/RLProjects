@@ -2,4 +2,4 @@
 *.lock
 __py*__
 *.pyc
-
+graph*.png
