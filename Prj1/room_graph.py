@@ -254,6 +254,7 @@ def build_random_room(
     interior_cells = rows * cols - wall_count
     ratio = max_obstacle_ratio
     min_ratio = 0.005
+    ratio_decay = 0.85
     while ratio >= min_ratio:
         g = _build_random_room_attempt(
             rows=rows,
@@ -265,10 +266,10 @@ def build_random_room(
         )
         interior_obstacles = g.obstacle_count() - wall_count
         # if interior_obstacles > interior_cells * max_obstacle_ratio:
-        #     ratio /= 2
+        #     ratio *= ratio_decay
         #     continue
         if not g.is_floor_connected():
-            ratio /= 2
+            ratio *= ratio_decay
             continue
         return g
     g = RoomGraph(rows, cols)
