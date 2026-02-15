@@ -17,11 +17,29 @@ from config import (START_POSITION, MAX_STEPS_PER_EPISODE, FPS, AUTO_STEP_DELAY,
                     REWARD_COMPLETION, HEADLESS_EPISODES)
 from scene import create_scene_graph, reset_graph, check_completion, get_completion_stats
 from rl_functions import get_state, sample_step, reward
+from reinforce import reinforce_update
+
+
 
 if ENABLE_VISUALIZATION:
     import pygame
     from visualization import init_pygame, draw_grid
 
+RETURNS_LOG_PATH = "returns.txt"
+
+def init_returns_log(path=RETURNS_LOG_PATH):
+    """
+    Create (overwrite) returns log file at the start of each run.
+    """
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("episode\tsteps\treturn_G\tcompleted\n")
+
+def append_return_log(episode, steps, G, completed, path=RETURNS_LOG_PATH):
+    """
+    Append one episode result to returns log.
+    """
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"{episode}\t{steps}\t{float(G)}\t{int(completed)}\n")
 
 class GameLogger:
     """Handles logging to both file and console"""
@@ -89,7 +107,7 @@ class GameLogger:
 
 
 logger = GameLogger()
-
+init_returns_log()
 
 def reset_game():
     """
@@ -111,7 +129,7 @@ def reset_game():
     return graph, state, G, episode, step, waiting
 
 
-def do_step(graph, state, G, episode, step, waiting, episodes_data):
+def do_step(graph, state, G, episode, step, waiting, episodes_data, trajectory):
     """
     Execute one game step.
     
@@ -129,6 +147,7 @@ def do_step(graph, state, G, episode, step, waiting, episodes_data):
     """
     if waiting:
         # Start new episode
+        trajectory.clear()
         graph, state, G, _, step, waiting = reset_game()
         episode += 1
         logger.log_episode_start(episode, START_POSITION)
@@ -138,13 +157,23 @@ def do_step(graph, state, G, episode, step, waiting, episodes_data):
     old_pos = state['agent_pos']
     
     # Calculate reward before stepping
-    step_reward = reward(graph, state)
-    G += step_reward
+    #step_reward = reward(graph, state)
+    #G += step_reward
     
     # Take step
-    state = sample_step(graph, state)
-    new_pos = state['agent_pos']
-    step = state['steps']
+    state_next, action_idx, probs = sample_step(graph, state)
+    step_reward = reward(graph, state_next)
+    G += step_reward
+    new_pos = state_next['agent_pos']
+    step = state_next['steps']
+
+    trajectory.append({
+    "state": state,          # state BEFORE action
+    "action": action_idx,    # 0..3
+    "reward": step_reward,   # reward
+    "probs": probs           # pi(.|s)
+    })
+    state = state_next
     
     # Log step
     logger.log_step(step, old_pos, new_pos, step_reward, G)
@@ -157,6 +186,15 @@ def do_step(graph, state, G, episode, step, waiting, episodes_data):
         episodes_data.append({'episode': episode, 'steps': step, 'G': G, 'completed': True})
         logger.log(f"\n🎉 COMPLETION! All {stats['total_free']} free cells visited!")
         logger.log_episode_end(episode, step, G, f"COMPLETED (+{REWARD_COMPLETION} bonus)")
+        print(f"[DEBUG] episode end, len(traj)={len(trajectory)}")
+        _, G_ep = reinforce_update(trajectory, alpha=0.005, gamma=1.0)
+        print(f"[DEBUG] reinforce called, G_ep={G_ep}")
+        append_return_log(
+            episode=episode,
+            steps=step,
+            G=G,
+            completed=True
+        )
         return graph, state, G, episode, step, waiting
     
     # Check if episode should end due to max steps
@@ -166,6 +204,15 @@ def do_step(graph, state, G, episode, step, waiting, episodes_data):
         episodes_data.append({'episode': episode, 'steps': step, 'G': G, 'completed': False})
         logger.log(f"Progress: {stats['visited']}/{stats['total_free']} cells ({stats['percentage']:.1f}%)")
         logger.log_episode_end(episode, step, G, "max steps reached")
+        print(f"[DEBUG] episode end, len(traj)={len(trajectory)}")
+        _, G_ep = reinforce_update(trajectory, alpha=0.005, gamma=1.0)
+        print(f"[DEBUG] reinforce called, G_ep={G_ep}")
+        append_return_log(
+            episode=episode,
+            steps=step,
+            G=G,
+            completed=False
+        )
     
     return graph, state, G, episode, step, waiting
 
@@ -188,7 +235,8 @@ def main():
     auto = False
     running = True
     episodes_data = []
-    
+    trajectory = []
+
     while running:
         if ENABLE_VISUALIZATION:
             clock.tick(FPS)
@@ -202,10 +250,11 @@ def main():
                     if event.key in (pygame.K_q, pygame.K_ESCAPE):
                         running = False
                     
-                    if event.key == pygame.K_SPACE:
+                    elif event.key == pygame.K_SPACE:
                         scene_graph, s, G, episode, step, waiting = do_step(
-                            scene_graph, s, G, episode, step, waiting, episodes_data
-                        )
+                            scene_graph, s, G, episode, step, waiting, episodes_data, trajectory
+                        )      
+
                     
                     if event.key == pygame.K_a:
                         auto = not auto
@@ -224,7 +273,7 @@ def main():
             # Auto mode
             if auto and pygame.time.get_ticks() % AUTO_STEP_DELAY < 20:
                 scene_graph, s, G, episode, step, waiting = do_step(
-                    scene_graph, s, G, episode, step, waiting, episodes_data
+                    scene_graph, s, G, episode, step, waiting, episodes_data, trajectory
                 )
             
             # Draw everything
@@ -233,7 +282,7 @@ def main():
         else:
             # Headless mode - run episodes automatically
             scene_graph, s, G, episode, step, waiting = do_step(
-                scene_graph, s, G, episode, step, waiting, episodes_data
+                scene_graph, s, G, episode, step, waiting, episodes_data, trajectory
             )
             
             # Limit number of episodes in headless mode

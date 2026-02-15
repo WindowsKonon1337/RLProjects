@@ -97,8 +97,9 @@ def sample_step(graph, s):
     
     # Update steps count
     new_steps = s['steps'] + 1
-    
-    return get_state(graph, new_pos, new_steps)
+    new_state = get_state(graph, new_pos, new_steps)
+    return new_state, idx, pol
+
 
 
 def reward(graph, s):
