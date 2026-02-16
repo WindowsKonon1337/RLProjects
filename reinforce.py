@@ -18,9 +18,12 @@ Here:
 
 # reinforce.py
 import numpy as np
-from policy import get_theta, set_theta
+from collections import deque
+from policy import get_theta, set_theta, state_key
 from rl_functions import sample_step, reward
 
+BASELINE_V = {}
+G_HISTORY = deque(maxlen=100)
 
 def collect_trajectory(graph, init_state, max_steps):
     """
@@ -67,11 +70,13 @@ def _episode_return(traj, gamma=1.0):
     return G
 
 
-def reinforce_update(traj, alpha=0.005, gamma=1.0):
+def reinforce_update(traj, alpha=0.001, gamma=1.0, beta_v=0.2, use_state_baseline=True):
     """
     One REINFORCE update with formula:
-      grad = G(tau) * sum_t grad log pi(a_t|s_t)
+
+      grad = sum_t (G - b_t) * grad log pi(a_t|s_t)
       theta <- theta + alpha * grad
+      - b_t is either V(s_t) (state baseline) or mean recent G (global baseline)
 
     Args:
         traj (list): Episode trajectory.
@@ -86,6 +91,8 @@ def reinforce_update(traj, alpha=0.005, gamma=1.0):
 
     theta = get_theta()
     G = _episode_return(traj, gamma=gamma)
+    G_HISTORY.append(G)
+    global_b = float(np.mean(G_HISTORY)) if len(G_HISTORY) > 0 else 0.0
 
     # accumulate sum_t grad log pi(a_t|s_t) per state position
     grad_sum = {}
@@ -94,22 +101,37 @@ def reinforce_update(traj, alpha=0.005, gamma=1.0):
         s = step["state"]
         a = int(step["action"])
         probs = np.asarray(step["probs"], dtype=np.float64)
-        pos = s["agent_pos"]
+        key = state_key(s)
 
-        if pos not in theta:
-            theta[pos] = np.zeros(4, dtype=np.float64)
-        if pos not in grad_sum:
-            grad_sum[pos] = np.zeros(4, dtype=np.float64)
+        if key not in theta:
+            theta[key] = np.zeros(4, dtype=np.float64)
+        if key not in grad_sum:
+            grad_sum[key] = np.zeros(4, dtype=np.float64)
+
+        if use_state_baseline:
+            b = BASELINE_V.get(key, 0.0)
+        else:
+            b = global_b
+
+        advantage = G - b
 
         one_hot = np.zeros(4, dtype=np.float64)
         one_hot[a] = 1.0
 
         # grad log pi for softmax logits
-        grad_sum[pos] += (one_hot - probs)
+        grad_log_pi = one_hot - probs
+
+        grad_sum[key] += advantage * grad_log_pi
 
     # gradient ascent step
-    for pos in grad_sum:
-        theta[pos] += alpha * G * grad_sum[pos]
+    for key, g in grad_sum.items():
+        theta[key] += alpha * g
 
+    if use_state_baseline:
+        visited_keys = set(state_key(step["state"]) for step in traj)
+        for key in visited_keys:
+            old = BASELINE_V.get(key, 0.0)
+            BASELINE_V[key] = (1.0 - beta_v) * old + beta_v * G
+    
     set_theta(theta)
     return theta, G

@@ -62,7 +62,7 @@ def get_state(graph, pos, steps=0):
     }
 
 
-def sample_step(graph, s):
+def sample_step(graph, s, eps=0.0):
     """
     Sample action from policy and return new state.
     Marks current cell as visited.
@@ -70,7 +70,7 @@ def sample_step(graph, s):
     Args:
         graph: NetworkX graph
         s: Current state dict
-        
+        eps (float): Exploration probability in [0, 1]
     Returns:
         dict: New state after taking action
     """
@@ -82,7 +82,25 @@ def sample_step(graph, s):
     graph.nodes[old_pos]['is_visited'] = True
     
     pol = policy(s)
-    idx = np.random.choice(len(neighbors) - 1, p=pol)
+
+
+    # valid actions among [Left, Up, Right, Down]
+    valid_mask = np.array([not n[2] for n in neighbors[1:]], dtype=bool)
+    valid_idx = np.where(valid_mask)[0]
+
+    # epsilon exploration
+    if np.random.rand() < eps:
+        if len(valid_idx) > 0:
+            idx = np.random.choice(valid_idx)
+            pol_used = np.zeros_like(pol, dtype=np.float64)
+            pol_used[valid_idx] = 1.0 / len(valid_idx)   # uniform over valid
+        else:
+            idx = np.random.choice(len(neighbors) - 1)
+            pol_used = np.ones_like(pol, dtype=np.float64) / len(pol)
+    else:
+        idx = np.random.choice(len(neighbors) - 1, p=pol)
+        pol_used = pol
+        
     chosen = neighbors[idx + 1]
     
     new_pos = (chosen[0], chosen[1])
@@ -98,7 +116,7 @@ def sample_step(graph, s):
     # Update steps count
     new_steps = s['steps'] + 1
     new_state = get_state(graph, new_pos, new_steps)
-    return new_state, idx, pol
+    return new_state, idx, pol_used
 
 
 

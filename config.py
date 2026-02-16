@@ -4,8 +4,8 @@ All game parameters, colors, and settings are defined here.
 """
 
 # === GAME PARAMETERS ===
-GRID_SIZE = 10  # Size of the game grid (10x10)
-OBSTACLE_PROB = 0.1  # Probability of obstacle generation
+GRID_SIZE = 5 # Size of the game grid (10x10)
+OBSTACLE_PROB = 0.1 # Probability of obstacle generation
 START_POSITION = (0, GRID_SIZE - 1)  # Agent always starts at top-left corner
 
 # === VISUAL PARAMETERS ===
@@ -19,7 +19,7 @@ INFO_HEIGHT = 100  # Height of bottom info area
 # === REWARD PARAMETERS ===
 REWARD_VISITED = -0.5  # Penalty for revisiting a cell
 REWARD_NEW = 1.0  # Reward for visiting a new cell
-REWARD_COMPLETION = 100.0  # Bonus reward for visiting all non-obstacle cells
+REWARD_COMPLETION = 0  # Bonus reward for visiting all non-obstacle cells
 
 # === COLORS ===
 # Background
@@ -56,5 +56,5 @@ LOG_FILE = "game_log.log"  # Log file name
 VERBOSE_CONSOLE = True  # Print detailed info to console
 
 # === EPISODE SETTINGS ===
-MAX_STEPS_PER_EPISODE = 1000  # Maximum steps before episode ends
-HEADLESS_EPISODES = 100 # Number of episodes to run in headless mode
+MAX_STEPS_PER_EPISODE = 500  # Maximum steps before episode ends
+HEADLESS_EPISODES = 1000 # Number of episodes to run in headless mode 

@@ -161,7 +161,8 @@ def do_step(graph, state, G, episode, step, waiting, episodes_data, trajectory):
     #G += step_reward
     
     # Take step
-    state_next, action_idx, probs = sample_step(graph, state)
+    eps = max(0.05, 0.20 * (0.995 ** episode))
+    state_next, action_idx, probs = sample_step(graph, state, eps=eps)
     step_reward = reward(graph, state_next)
     G += step_reward
     new_pos = state_next['agent_pos']
@@ -180,14 +181,14 @@ def do_step(graph, state, G, episode, step, waiting, episodes_data, trajectory):
     
     # Check if all free cells are visited (COMPLETION)
     if check_completion(graph):
-        G += REWARD_COMPLETION  # Add completion bonus
+        G += REWARD_COMPLETION # Add completion bonus
         waiting = True
         stats = get_completion_stats(graph)
         episodes_data.append({'episode': episode, 'steps': step, 'G': G, 'completed': True})
         logger.log(f"\n🎉 COMPLETION! All {stats['total_free']} free cells visited!")
         logger.log_episode_end(episode, step, G, f"COMPLETED (+{REWARD_COMPLETION} bonus)")
         print(f"[DEBUG] episode end, len(traj)={len(trajectory)}")
-        _, G_ep = reinforce_update(trajectory, alpha=0.005, gamma=1.0)
+        _, G_ep = reinforce_update(trajectory)
         print(f"[DEBUG] reinforce called, G_ep={G_ep}")
         append_return_log(
             episode=episode,
@@ -205,7 +206,7 @@ def do_step(graph, state, G, episode, step, waiting, episodes_data, trajectory):
         logger.log(f"Progress: {stats['visited']}/{stats['total_free']} cells ({stats['percentage']:.1f}%)")
         logger.log_episode_end(episode, step, G, "max steps reached")
         print(f"[DEBUG] episode end, len(traj)={len(trajectory)}")
-        _, G_ep = reinforce_update(trajectory, alpha=0.005, gamma=1.0)
+        _, G_ep = reinforce_update(trajectory)
         print(f"[DEBUG] reinforce called, G_ep={G_ep}")
         append_return_log(
             episode=episode,
