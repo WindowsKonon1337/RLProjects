@@ -261,8 +261,8 @@ class CNNPolicyNet(nn.Module):
         # Fusion
         combined = torch.cat([cnn_out, local_out], dim=1)
         
-        # FC Body
-        h = F.relu(self.fc1(combined))
+        # FC Body - Use Tanh to prevent exploding values
+        h = torch.tanh(self.fc1(combined))
         logits = self.fc2(h)
         
         if mask is not None:
