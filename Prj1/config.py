@@ -4,7 +4,7 @@ All game parameters, colors, and settings are defined here.
 """
 
 # === GAME PARAMETERS ===
-GRID_SIZE = 10  # Size of the game grid (10x10)
+GRID_SIZE = 5 + 2  # Size of the game grid (10x10)
 OBSTACLE_PROB = 0.1  # Probability of obstacle generation
 START_POSITION = (1, GRID_SIZE - 2)  # Agent starts near top-left, avoiding walls
 
@@ -19,7 +19,7 @@ INFO_HEIGHT = 100  # Height of bottom info area
 # === REWARD PARAMETERS ===
 REWARD_VISITED = -0.2  # Penalty for revisiting a cell
 REWARD_NEW = 1.0  # Reward for visiting a new cell
-REWARD_COMPLETION = 100.0  # Bonus reward for visiting all non-obstacle cells
+REWARD_COMPLETION = 20.0  # Bonus reward for visiting all non-obstacle cells
 REWARD_STEP = -0.01 # Penalty for each step
 
 # === COLORS ===
@@ -60,8 +60,17 @@ VERBOSE_CONSOLE = True  # Print detailed info to console
 MAX_STEPS_PER_EPISODE = 200  # Maximum steps before episode ends
 HEADLESS_EPISODES = 100 # Number of episodes to run in headless mode
 
+# === MODEL SETTINGS ===
+MODEL_TYPE = "CNN" # "MLP" or "CNN"
+CNN_INPUT_REGULARIZATION = 1e-4 # L2 penalty for CNN input layer
+
 # === WEIGHTS MANAGEMENT ===
 WEIGHTS_FILE = "Prj1/policy_weights.pth"
 LOAD_EXISTING_WEIGHTS = True
 SAVE_WEIGHTS = True
 
+
+# === TRAINING STATS ===
+TRAINING_STATS_FILE = "Prj1/training_stats.json"
+TRAINING_PLOT_FILE = "Prj1/training_plot.png"
+PLOT_TRAINING_CURVE = True
