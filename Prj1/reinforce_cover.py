@@ -3,8 +3,21 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import sys
+import os
 from typing import List, Tuple, Optional
 from collections import deque
+
+# Import config
+from config import *
+
+# Import visualization if needed
+try:
+    import pygame
+    from visualization import init_pygame, draw_grid
+except ImportError:
+    print("Pygame not found. Visualization disabled.")
+    ENABLE_VISUALIZATION = False
 
 from room_graph import (
     RoomGraph,
@@ -21,21 +34,20 @@ from room_graph import (
 UNKNOWN, EXPLORED_FLOOR, EXPLORED_WALL = 0, 1, 2
 
 
-
 class FloorCoverEnv:
     def __init__(
         self,
         room: RoomGraph,
         max_steps: Optional[int] = None,
-        reward_new: float = 1.0,
-        reward_revisit: float = -0.2,
-        reward_step: float = -0.01,
+        reward_new: float = REWARD_NEW,
+        reward_revisit: float = REWARD_VISITED,
+        reward_step: float = REWARD_STEP,
     ):
         self.room = room
         self.rows, self.cols = room.rows, room.cols
         self.floor_cells = room.floor_cells()
         self.n_floor = len(self.floor_cells)
-        self.max_steps = max_steps if max_steps is not None else 2 * self.n_floor
+        self.max_steps = max_steps if max_steps is not None else MAX_STEPS_PER_EPISODE
         self.reward_new = reward_new
         self.reward_revisit = reward_revisit
         self.reward_step = reward_step
@@ -54,7 +66,11 @@ class FloorCoverEnv:
         if start is not None and self.room.is_floor(start[0], start[1]):
             self._pos = start
         else:
-            self._pos = random.choice(self.floor_cells)
+            if self.room.is_floor(START_POSITION[0], START_POSITION[1]):
+                self._pos = START_POSITION
+            else:
+                 self._pos = random.choice(self.floor_cells)
+        
         self._visited = {self._pos}
         self._step_count = 0
         self._explored.fill(UNKNOWN)
@@ -91,7 +107,12 @@ class FloorCoverEnv:
         return 3 * self.rows * self.cols + 8
 
     def _get_info(self) -> dict:
-        return {"visited": len(self._visited), "n_floor": self.n_floor}
+        return {
+            "visited": len(self._visited), 
+            "n_floor": self.n_floor,
+            "agent_pos": self._pos,
+            "visited_set": self._visited.copy()
+        }
 
     def get_action_mask(self) -> np.ndarray:
         r, c = self._pos
@@ -106,18 +127,20 @@ class FloorCoverEnv:
         dr, dc = DIRECTIONS[action]
         nr, nc = r + dr, c + dc
 
+        reward = self.reward_step
+
         if not self.room.is_floor(nr, nc):
-            reward = self.reward_step
+            # Wall hit: reward remains just the step penalty
             done = False
         else:
             self._pos = (nr, nc)
             self._step_count += 1
             self._reveal(nr, nc)
             if (nr, nc) in self._visited:
-                reward = self.reward_revisit
+                reward += self.reward_revisit
             else:
                 self._visited.add((nr, nc))
-                reward = self.reward_new
+                reward += self.reward_new
             done = len(self._visited) >= self.n_floor or self._step_count >= self.max_steps
 
         return self._get_obs(), reward, done, False, self._get_info()
@@ -155,6 +178,16 @@ class PolicyNet(nn.Module):
         log_prob = F.log_softmax(logits, dim=-1)[0, action]
         return action, log_prob
 
+    def save_weights(self, filename: str):
+        torch.save(self.state_dict(), filename)
+        print(f"Weights saved to {filename}")
+
+    def load_weights(self, filename: str, device: torch.device):
+        if os.path.exists(filename):
+            self.load_state_dict(torch.load(filename, map_location=device))
+            print(f"Weights loaded from {filename}")
+        else:
+            print(f"Weights file {filename} not found.")
 
 
 def compute_returns(rewards: List[float], gamma: float = 0.99) -> List[float]:
@@ -184,29 +217,134 @@ def train_reinforce(
 
     env = FloorCoverEnv(room, max_steps=max_steps)
     policy = PolicyNet(env.obs_size).to(device)
+    
+    # Load weights if configured
+    if LOAD_EXISTING_WEIGHTS:
+        policy.load_weights(WEIGHTS_FILE, device)
+        
     optimizer = torch.optim.Adam(policy.parameters(), lr=lr)
 
+    # Initialize Pygame if enabled
+    screen = None
+    font = None
+    small_font = None
+    tiny_font = None
+    clock = None
+    
+    if ENABLE_VISUALIZATION:
+        screen, font, small_font, tiny_font, clock = init_pygame()
+        
+    # Persistent auto_mode state
+    auto_mode = False 
+
+    # Force start position to be a floor cell if possible (User req 1)
+    # We do this once on the passed room
+    sx, sy = START_POSITION
+    if 0 <= sx < room.rows and 0 <= sy < room.cols:
+        room.set_floor(sx, sy)
+
     for episode in range(num_episodes):
-        obs, _ = env.reset()
+        obs, _ = env.reset(start=START_POSITION) # Always try START_POSITION
         traj_log_probs: List[torch.Tensor] = []
         rewards: List[float] = []
+        
+        step = 0
+        G = 0.0
+        reset_requested = False
 
-        for _ in range(env.max_steps):
+        while True:
+            step_once = False
+            
+            # Handle Pygame events if visualization is enabled
+            if ENABLE_VISUALIZATION:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit()
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            pygame.quit()
+                            sys.exit()
+                        if event.key == pygame.K_SPACE:
+                            if auto_mode:
+                                auto_mode = False # Stop auto if running
+                            else:
+                                step_once = True # Single step if paused
+                        if event.key == pygame.K_a:
+                            auto_mode = not auto_mode # Toggle auto
+                        if event.key == pygame.K_r: # Reset Key (User req 3)
+                            reset_requested = True
+            
+            if reset_requested:
+                break # Break inner loop, will start next episode
+
+            # Decide if we should proceed with a step
+            should_step = auto_mode or step_once
+
+            # If NOT stepping (Paused), just draw and wait
+            if not should_step and ENABLE_VISUALIZATION:
+                # Need to construct state for draw_grid
+                state_info = env._get_info()
+                vis_state = {
+                    'agent_pos': state_info['agent_pos'],
+                    'visited': state_info['visited_set'],
+                }
+                
+                # Get action probs for visualization (optional)
+                x = torch.from_numpy(obs).float().unsqueeze(0).to(device)
+                mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
+                with torch.no_grad():
+                    logits = policy(x, mask)
+                    probs = F.softmax(logits, dim=-1).cpu().numpy()[0]
+                
+                # waiting=True shows "WAITING"
+                draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, episode, True, step, action_probs=probs)
+                clock.tick(FPS)
+                continue
+
+            # Taking a step
             x = torch.from_numpy(obs).float().unsqueeze(0).to(device)  # (1, obs_size)
             mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
             action, log_prob = policy.get_action(x, mask, deterministic=False)
             traj_log_probs.append(log_prob)
+            
+            # Calculate action probs for visualization
+            probs = None
+            if ENABLE_VISUALIZATION:
+                 with torch.no_grad():
+                    logits = policy(x, mask)
+                    probs = F.softmax(logits, dim=-1).cpu().numpy()[0]
 
-            obs, reward, done, _, _ = env.step(action)
+            obs, reward, done, _, info = env.step(action)
             rewards.append(reward)
+            G += reward
+            step += 1
+            
+            if ENABLE_VISUALIZATION:
+                state_info = info
+                vis_state = {
+                    'agent_pos': state_info['agent_pos'],
+                    'visited': state_info['visited_set'],
+                }
+                # waiting=False shows "Episode X Step Y"
+                draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, episode, False, step, action_probs=probs)
+                
+                if episode < HEADLESS_EPISODES:
+                     pass
+                     
+                pygame.display.flip()
+                if auto_mode and AUTO_STEP_DELAY > 0:
+                    pygame.time.delay(AUTO_STEP_DELAY)
+
             if done:
                 break
-
+        
+        # Policy Update
         returns = compute_returns(rewards, gamma=gamma)
         baseline = sum(returns) / len(returns) if returns else 0.0
         policy_loss = 0.0
-        for log_prob, G in zip(traj_log_probs, returns):
-            policy_loss = policy_loss - log_prob * (G - baseline)
+        for log_prob, G_ret in zip(traj_log_probs, returns):
+            policy_loss = policy_loss - log_prob * (G_ret - baseline)
         optimizer.zero_grad()
         policy_loss.backward()
         optimizer.step()
@@ -215,6 +353,9 @@ def train_reinforce(
             n_visited = env._get_info()["visited"]
             total_reward = sum(rewards)
             print(f"Episode {episode + 1}: visited {n_visited}/{env.n_floor}, total_reward={total_reward:.2f}")
+
+    if SAVE_WEIGHTS:
+        policy.save_weights(WEIGHTS_FILE)
 
     return policy
 
@@ -225,24 +366,61 @@ def evaluate_policy(room: RoomGraph, policy: PolicyNet, num_episodes: int = 5, d
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     env = FloorCoverEnv(room)
     policy.eval()
+    
+    # Check if we should visualize evaluation
+    screen = None
+    if ENABLE_VISUALIZATION:
+         screen, font, small_font, tiny_font, clock = init_pygame()
+         
     for ep in range(num_episodes):
         obs, _ = env.reset()
         steps = 0
+        G = 0.0
         while steps < env.max_steps:
+             # Handle Pygame events
+            if ENABLE_VISUALIZATION:
+                for event in pygame.event.get():
+                        if event.type == pygame.QUIT:
+                            pygame.quit()
+                            sys.exit()
+                        if event.key == pygame.K_ESCAPE:
+                            pygame.quit()
+                            sys.exit()
+
             x = torch.from_numpy(obs).float().unsqueeze(0).to(device)
             mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
             action, _ = policy.get_action(x, mask, deterministic=True)
+            
+            # Vis info
+            probs = None
+            if ENABLE_VISUALIZATION:
+                with torch.no_grad():
+                    logits = policy(x, mask)
+                    probs = F.softmax(logits, dim=-1).cpu().numpy()[0]
+                    
             obs, reward, done, _, info = env.step(action)
             steps += 1
+            G += reward
+            
+            if ENABLE_VISUALIZATION:
+                state_info = info
+                vis_state = {
+                    'agent_pos': state_info['agent_pos'],
+                    'visited': state_info['visited_set'],
+                    'neighbors': []
+                }
+                draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, ep, False, steps, action_probs=probs)
+                pygame.time.delay(AUTO_STEP_DELAY)
+
             if done:
                 break
         print(f"  Eval ep {ep + 1}: visited {info['visited']}/{env.n_floor} in {steps} steps")
 
 
 def main():
-    room = build_random_room(rows=8, cols=8, add_walls=True, max_obstacle_ratio=0, rng=random.Random(42))
+    room = build_random_room(rows=GRID_SIZE, cols=GRID_SIZE, add_walls=True, max_obstacle_ratio=OBSTACLE_PROB, rng=random.Random(42))
     print("Floor cells:", len(room.floor_cells()))
-    policy = train_reinforce(room, num_episodes=1500, lr=1e-3, gamma=0.99, seed=42)
+    policy = train_reinforce(room, num_episodes=2000, lr=1e-3, gamma=0.99, seed=42)
     print("Evaluation (deterministic):")
     evaluate_policy(room, policy, num_episodes=5)
 
