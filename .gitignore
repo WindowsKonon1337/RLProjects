@@ -3,7 +3,3 @@
 __py*__
 *.pyc
 graph*.png
-*.log
-*.pth
-*training_plot*
-*training_stats*
