@@ -1,0 +1,382 @@
+[
+    {
+        "episode": 1,
+        "reward": 10.049999999999999,
+        "visited_ratio": 0.9565217391304348
+    },
+    {
+        "episode": 2,
+        "reward": 8.999999999999998,
+        "visited_ratio": 0.9545454545454546
+    },
+    {
+        "episode": 3,
+        "reward": 16.919999999999998,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 4,
+        "reward": 15.15,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 5,
+        "reward": 8.999999999999998,
+        "visited_ratio": 0.9545454545454546
+    },
+    {
+        "episode": 6,
+        "reward": 8.999999999999998,
+        "visited_ratio": 0.9545454545454546
+    },
+    {
+        "episode": 7,
+        "reward": 2.9999999999999996,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 8,
+        "reward": 9.989999999999998,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 9,
+        "reward": 8.999999999999998,
+        "visited_ratio": 0.9130434782608695
+    },
+    {
+        "episode": 10,
+        "reward": 10.049999999999999,
+        "visited_ratio": 0.9565217391304348
+    },
+    {
+        "episode": 11,
+        "reward": 2.699999999999999,
+        "visited_ratio": 0.9375
+    },
+    {
+        "episode": 12,
+        "reward": 18.99,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 13,
+        "reward": 15.389999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 14,
+        "reward": 7.56,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 15,
+        "reward": 4.799999999999999,
+        "visited_ratio": 0.9444444444444444
+    },
+    {
+        "episode": 16,
+        "reward": 8.07,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 17,
+        "reward": 6.899999999999999,
+        "visited_ratio": 0.95
+    },
+    {
+        "episode": 18,
+        "reward": 18.39,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 19,
+        "reward": 6.899999999999999,
+        "visited_ratio": 0.95
+    },
+    {
+        "episode": 20,
+        "reward": 6.899999999999999,
+        "visited_ratio": 0.95
+    },
+    {
+        "episode": 21,
+        "reward": 1.649999999999999,
+        "visited_ratio": 0.875
+    },
+    {
+        "episode": 22,
+        "reward": 15.33,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 23,
+        "reward": 7.949999999999999,
+        "visited_ratio": 0.9090909090909091
+    },
+    {
+        "episode": 24,
+        "reward": 12.69,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 25,
+        "reward": 4.829999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 26,
+        "reward": 16.439999999999998,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 27,
+        "reward": 10.049999999999999,
+        "visited_ratio": 0.9565217391304348
+    },
+    {
+        "episode": 28,
+        "reward": 6.899999999999999,
+        "visited_ratio": 0.95
+    },
+    {
+        "episode": 29,
+        "reward": 6.899999999999999,
+        "visited_ratio": 0.95
+    },
+    {
+        "episode": 30,
+        "reward": 14.549999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 31,
+        "reward": 13.5,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 32,
+        "reward": 16.71,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 33,
+        "reward": 15.27,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 34,
+        "reward": 14.94,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 35,
+        "reward": 7.949999999999999,
+        "visited_ratio": 0.8695652173913043
+    },
+    {
+        "episode": 36,
+        "reward": -2.550000000000001,
+        "visited_ratio": 0.6666666666666666
+    },
+    {
+        "episode": 37,
+        "reward": 8.999999999999998,
+        "visited_ratio": 0.9545454545454546
+    },
+    {
+        "episode": 38,
+        "reward": 10.049999999999999,
+        "visited_ratio": 0.9565217391304348
+    },
+    {
+        "episode": 39,
+        "reward": 15.42,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 40,
+        "reward": -3.600000000000001,
+        "visited_ratio": 0.9
+    },
+    {
+        "episode": 41,
+        "reward": 15.959999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 42,
+        "reward": 16.74,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 43,
+        "reward": 21.0,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 44,
+        "reward": -3.600000000000001,
+        "visited_ratio": 0.6
+    },
+    {
+        "episode": 45,
+        "reward": 8.999999999999998,
+        "visited_ratio": 0.9545454545454546
+    },
+    {
+        "episode": 46,
+        "reward": 12.959999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 47,
+        "reward": 6.899999999999999,
+        "visited_ratio": 0.95
+    },
+    {
+        "episode": 48,
+        "reward": 12.209999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 49,
+        "reward": 7.68,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 50,
+        "reward": 11.459999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 51,
+        "reward": 16.71,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 52,
+        "reward": 13.47,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 53,
+        "reward": 14.67,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 54,
+        "reward": 9.569999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 55,
+        "reward": 8.999999999999998,
+        "visited_ratio": 0.9545454545454546
+    },
+    {
+        "episode": 56,
+        "reward": 10.049999999999999,
+        "visited_ratio": 0.9565217391304348
+    },
+    {
+        "episode": 57,
+        "reward": 15.33,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 58,
+        "reward": 6.899999999999999,
+        "visited_ratio": 0.95
+    },
+    {
+        "episode": 59,
+        "reward": -7.800000000000001,
+        "visited_ratio": 0.3333333333333333
+    },
+    {
+        "episode": 60,
+        "reward": 18.0,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 61,
+        "reward": 14.129999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 62,
+        "reward": 10.32,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 63,
+        "reward": -5.700000000000001,
+        "visited_ratio": 0.4666666666666667
+    },
+    {
+        "episode": 64,
+        "reward": 17.4,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 65,
+        "reward": 16.05,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 66,
+        "reward": 12.75,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 67,
+        "reward": 16.77,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 68,
+        "reward": 13.53,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 69,
+        "reward": -2.550000000000001,
+        "visited_ratio": 0.9090909090909091
+    },
+    {
+        "episode": 70,
+        "reward": 14.76,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 71,
+        "reward": 16.95,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 72,
+        "reward": 18.45,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 73,
+        "reward": 10.049999999999999,
+        "visited_ratio": 0.9565217391304348
+    },
+    {
+        "episode": 74,
+        "reward": 5.849999999999999,
+        "visited_ratio": 0.9
+    },
+    {
+        "episode": 75,
+        "reward": 10.649999999999999,
+        "visited_ratio": 1.0
+    },
+    {
+        "episode": 76,
+        "reward": 4.799999999999999,
+        "visited_ratio": 0.85
+    }
+]
