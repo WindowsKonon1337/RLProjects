@@ -6,6 +6,7 @@ All game parameters, colors, and settings are defined here.
 # === GAME PARAMETERS ===
 GRID_SIZE = 5 + 2  # Size of the game grid (10x10)
 OBSTACLE_PROB = 0.1 # Probability of obstacle generation
+START_POSITION = (1, 1) # Start position for the agent
 
 # === VISUAL PARAMETERS ===
 CELL_SIZE = 50  # Size of each cell in pixels
@@ -68,12 +69,12 @@ NUM_EPISODES = 30000 # Total number of episodes to run
 HEADLESS_EPISODES = 1000 # Number of episodes to run without visualization (fast forward)
 
 # === MODEL SETTINGS ===
-MODEL_TYPE = "CNN" # "MLP" or "CNN" or "GNN"
+MODEL_TYPE = "HEURISTIC_DFS" # "MLP" or "CNN" or "GNN"
 CNN_INPUT_REGULARIZATION =  0 #1e-4 # L2 penalty for CNN input layer
 
 # === WEIGHTS MANAGEMENT ===
 WEIGHTS_FILE = f"Prj1/policy_weights_{MODEL_TYPE}.pth"
-LOAD_EXISTING_WEIGHTS = True
+LOAD_EXISTING_WEIGHTS = False
 SAVE_WEIGHTS = False
 
 

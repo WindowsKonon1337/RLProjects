@@ -7,7 +7,7 @@
 
 ---
 
-## 1) Where I started
+## 1) Where We Started
 
 ### 1.1 State
 - The environment state included:
@@ -99,7 +99,7 @@ This caused conflicting updates and local loops.
 - Added local context to policy key:
   - **valid_bits** for 4 directions,
   - compact neighbor visitedness features.
-- Idea: policy should encode both “where I am” and “what surrounds me now”.
+- Idea: policy should encode both “where the agent is” and “what surrounds it now”.
 
 
 ---
@@ -111,7 +111,7 @@ This caused conflicting updates and local loops.
 
 ## Baseline used in REINFORCE
 
-To reduce gradient variance, I used a **scalar baseline** equal to the **mean episodic return in the current batch**:
+To reduce gradient variance, we used a **scalar baseline** equal to the **mean episodic return in the current batch**:
 
 $$
 b \;=\; \frac{1}{N}\sum_{k=1}^{N} G(\tau^{(k)}),
@@ -145,7 +145,7 @@ $$
 ---
 
 ## 6) Final variant: what is considered
-In the final policy decision I use:
+In the final policy decision we use:
 1. Current agent position.
 2. Validity of 4 directions (wall/boundary or not).
 3. Local neighbor visitedness (context).
@@ -207,6 +207,10 @@ Simple fully connected network:
 Uses the same REINFORCE algorithm.
 - **Masking**: Logits of actions leading into walls are forcibly set to $-\infty$ ($-1e9$) so that `softmax` gives them 0 probability.
 
+### 5.3 Results
+
+![MLP Training Plot](MLP_PLOT.png)
+
 ---
 
 ## 6. CNN (Convolutional Neural Network) Architecture
@@ -234,7 +238,7 @@ A convolutional network is used to handle spatial structure (grid).
 3. **Fusion**:
    - Concatenation of all branches: $256 + 64 + 32 = 352$ features.
 4. **Head**:
-   - `Linear(352 \to Hidden) \to ReLU \to Linear(Hidden \to 4)`.
+   - `Linear(352 to Hidden) to ReLU to Linear(Hidden to 4)`.
 
 ### 6.2 Training
 Similar to REINFORCE, but with added **Input Regularization** on the weights of the first convolutional layer (`conv1.weight`) to prevent overfitting on noisy input data.
@@ -260,11 +264,17 @@ A greedy depth-first search algorithm with backtracking is implemented:
      - Agent pops the previous position from `stack`.
      - Steps back to that position.
 
+![DFS gif](DFS_visualisation.gif)
+
 ### 7.2 Comparison
 
 ### DFS vs CNN vs MLP vs Classic Reinforce Performance
+HEURISTIC
 ![Heuristic Plot](HEURISTIC_PLOT.png)
+CNN
 ![CNN Training Plot](CNN_PLOT.png)
-
+MLP
+![MLP Training Plot](MLP_PLOT.png)
+CLASSIC REINFORCE
 Take into account, here 50 000 steps were made for Classic Reinforce.
 ![Return per episode](50000steps.png)
