@@ -216,9 +216,13 @@ class CNNPolicyNet(nn.Module):
         self.input_channels = 6
         
         # 2. Spatial Branch (The Map) -> No Pooling, Stride 1
+        # 2. Spatial Branch (The Map) -> No Pooling, Stride 1
         self.conv1 = nn.Conv2d(self.input_channels, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(64)
         
         # Projection for Fusion Bottleneck
         # Deep RL trick: Compress massive spatial maps so they don't drown out other signals
@@ -274,9 +278,9 @@ class CNNPolicyNet(nn.Module):
         x_in = torch.cat([global_view, coords], dim=1)
         
         # --- Spatial Branch ---
-        h = F.relu(self.conv1(x_in))
-        h = F.relu(self.conv2(h))
-        h = F.relu(self.conv3(h))
+        h = F.relu(self.bn1(self.conv1(x_in)))
+        h = F.relu(self.bn2(self.conv2(h)))
+        h = F.relu(self.bn3(self.conv3(h)))
         
         # Path A: Spatial Projection
         spatial_flat = h.view(batch_size, -1)
@@ -518,7 +522,7 @@ def compute_returns(rewards: List[float], gamma: float = 0.99) -> List[float]:
 
 def train_reinforce(
     room: RoomGraph,
-    num_episodes: int = 2000,
+    num_episodes: int = NUM_EPISODES,
     lr: float = 1e-3,
     gamma: float = 0.99,
     max_steps: Optional[int] = None,
@@ -558,6 +562,9 @@ def train_reinforce(
             {'params': policy.conv1.parameters(), 'weight_decay': CNN_INPUT_REGULARIZATION},
             {'params': policy.conv2.parameters()}, # Default 0
             {'params': policy.conv3.parameters()},
+            {'params': policy.bn1.parameters()},
+            {'params': policy.bn2.parameters()},
+            {'params': policy.bn3.parameters()},
             {'params': policy.local_fc.parameters()},
             {'params': policy.fc1.parameters()},
             {'params': policy.fc2.parameters()}
@@ -584,10 +591,11 @@ def train_reinforce(
     
     if LOAD_EXISTING_WEIGHTS:
         # Load previous history if weights are loaded
-        training_history = load_stats_json(TRAINING_STATS_FILE)
+        stats_file = TRAINING_STATS_FILE if TRAIN_MODE else INFERENCE_STATS_FILE
+        training_history = load_stats_json(stats_file)
         if training_history:
             start_episode = training_history[-1]['episode']
-            print(f"Resuming training history from episode {start_episode}")
+            print(f"Resuming history from {stats_file}, episode {start_episode}")
 
     try:
         for episode_idx in range(num_episodes):
@@ -719,13 +727,12 @@ def train_reinforce(
                         'agent_pos': state_info['agent_pos'],
                         'visited': state_info['visited_set'],
                     }
-                    # waiting=False shows "Episode X Step Y"
-                    draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, episode, False, step, action_probs=probs)
-                    
                     if episode < HEADLESS_EPISODES:
-                         pass
-                         
-                    pygame.display.flip()
+                         pygame.event.pump() # Keep window responsive
+                    else:
+                        # waiting=False shows "Episode X Step Y"
+                        draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, episode, False, step, action_probs=probs)
+                        pygame.display.flip()
                     if auto_mode and AUTO_STEP_DELAY > 0:
                         pygame.time.delay(AUTO_STEP_DELAY)
 
@@ -733,14 +740,15 @@ def train_reinforce(
                     break
             
             # Policy Update
-            returns = compute_returns(rewards, gamma=gamma)
-            baseline = sum(returns) / len(returns) if returns else 0.0
-            policy_loss = 0.0
-            for log_prob, G_ret in zip(traj_log_probs, returns):
-                policy_loss = policy_loss - log_prob * (G_ret - baseline)
-            optimizer.zero_grad()
-            policy_loss.backward()
-            optimizer.step()
+            if TRAIN_MODE:
+                returns = compute_returns(rewards, gamma=gamma)
+                baseline = sum(returns) / len(returns) if returns else 0.0
+                policy_loss = 0.0
+                for log_prob, G_ret in zip(traj_log_probs, returns):
+                    policy_loss = policy_loss - log_prob * (G_ret - baseline)
+                optimizer.zero_grad()
+                policy_loss.backward()
+                optimizer.step()
             
             # --- Stats Collection ---
             n_visited = env._get_info()["visited"]
@@ -764,13 +772,14 @@ def train_reinforce(
     except KeyboardInterrupt:
         print("\nTraining interrupted by user.")
     finally:
-        if SAVE_WEIGHTS:
+        if SAVE_WEIGHTS and TRAIN_MODE:
             policy.save_weights(WEIGHTS_FILE)
             
         # Save persistence stats
         if training_history:
-            save_stats_json(training_history, TRAINING_STATS_FILE)
-            if PLOT_TRAINING_CURVE:
+            stats_file = TRAINING_STATS_FILE if TRAIN_MODE else INFERENCE_STATS_FILE
+            save_stats_json(training_history, stats_file)
+            if PLOT_TRAINING_CURVE and TRAIN_MODE:
                 plot_training_results(training_history, TRAINING_PLOT_FILE)
 
     return policy
@@ -847,7 +856,7 @@ def evaluate_policy(room: RoomGraph, policy: PolicyNet, num_episodes: int = 5, d
 def main():
     room = build_random_room(rows=GRID_SIZE, cols=GRID_SIZE, add_walls=True, max_obstacle_ratio=OBSTACLE_PROB, rng=random.Random(42))
     print("Floor cells:", len(room.floor_cells()))
-    policy = train_reinforce(room, num_episodes=2000, lr=1e-3, gamma=0.99, seed=42)
+    policy = train_reinforce(room, num_episodes=NUM_EPISODES, lr=LR, gamma=GAMMA, seed=42)
     print("Evaluation (deterministic):")
     evaluate_policy(room, policy, num_episodes=5)
 

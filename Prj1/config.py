@@ -18,9 +18,9 @@ INFO_HEIGHT = 100  # Height of bottom info area
 # === RL HYPERPARAMETERS ===
 LR = 1e-4  # Learning rate
 GAMMA = 0.99  # Discount factor
-HEADLESS_EPISODES = 100  # Episodes before visualization starts
 CNN_INPUT_REGULARIZATION = 0 # Regularization for first layer
-LOGIT_SCALE = 0.01 # "Temperature" for Softmax. Lower = Softer (Flatter) distribution. 0.1 was soft, 0.05 is VERY soft.
+LOGIT_SCALE = 0.05 # "Temperature" for Softmax. Lower = Softer (Flatter) distribution. 0.1 was soft, 0.05 is VERY soft.
+TRAIN_MODE = True # Set to False for inference only
 
 # === REWARD PARAMETERS ===
 REWARD_VISITED = -0.2  # Penalty for revisiting a cell
@@ -57,26 +57,28 @@ FPS = 60  # Frames per second
 AUTO_STEP_DELAY = 100  # Milliseconds between auto steps
 
 # === SIMULATION SETTINGS ===
-ENABLE_VISUALIZATION = False  # Set to False to run without pygame visualization
+ENABLE_VISUALIZATION = True  # Set to False to run without pygame visualization
 ENABLE_LOGGING = True  # Set to False to disable logging to file
 LOG_FILE = "Prj1/game_log.log"  # Log file name
 VERBOSE_CONSOLE = True  # Print detailed info to console
 
 # === EPISODE SETTINGS ===
 MAX_STEPS_PER_EPISODE = 200  # Maximum steps before episode ends
-HEADLESS_EPISODES = 1000 # Number of episodes to run in headless mode
+NUM_EPISODES = 30000 # Total number of episodes to run
+HEADLESS_EPISODES = 100 # Number of episodes to run without visualization (fast forward)
 
 # === MODEL SETTINGS ===
-MODEL_TYPE = "GNN" # "MLP" or "CNN" or "GNN"
+MODEL_TYPE = "CNN" # "MLP" or "CNN" or "GNN"
 CNN_INPUT_REGULARIZATION =  0 #1e-4 # L2 penalty for CNN input layer
 
 # === WEIGHTS MANAGEMENT ===
 WEIGHTS_FILE = f"Prj1/policy_weights_{MODEL_TYPE}.pth"
 LOAD_EXISTING_WEIGHTS = True
-SAVE_WEIGHTS = True
+SAVE_WEIGHTS = False
 
 
 # === TRAINING STATS ===
 TRAINING_STATS_FILE = f"Prj1/training_stats_{MODEL_TYPE}.json"
+INFERENCE_STATS_FILE = f"Prj1/inference_stats_{MODEL_TYPE}.json"
 TRAINING_PLOT_FILE = f"Prj1/training_plot_{MODEL_TYPE}.png"
 PLOT_TRAINING_CURVE = True
