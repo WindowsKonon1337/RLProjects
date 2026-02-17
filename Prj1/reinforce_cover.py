@@ -209,61 +209,95 @@ class CNNPolicyNet(nn.Module):
         self.rows = rows
         self.cols = cols
         
-        # --- Improved CNN Architecture ---
-        # Input: (Batch, 4, Rows, Cols)
-        # Channels: 0: Explored Floor, 1: Explored Wall, 2: Visited, 3: Current Pos
+        # --- Final Architecture: Parallel Branches + CoordConv ---
         
-        # Layer 1: Capture local features (3x3)
-        # Keeps size same (Padding=1)
-        self.conv1 = nn.Conv2d(4, 32, kernel_size=3, stride=1, padding=1)
+        # 1. Inputs
+        # Global: 4 dynamic channels (Floor, Wall, Visit, Pos) + 2 static (CoordX, CoordY) = 6
+        self.input_channels = 6
         
-        # Layer 2: Intermediate features
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        # 2. Spatial Branch (The Map) -> No Pooling, Stride 1
+        self.conv1 = nn.Conv2d(self.input_channels, 32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
         
-        # Layer 3: Higher level features
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
+        # Projection for Fusion Bottleneck
+        # Deep RL trick: Compress massive spatial maps so they don't drown out other signals
+        self.flat_spatial_size = 64 * rows * cols
+        self.spatial_proj = nn.Linear(self.flat_spatial_size, 256)
         
-        # Flatten size: 64 channels * rows * cols
-        self.flat_size = 64 * rows * cols
+        # 3. Global Context Branch (The Stats)
+        self.gap = nn.AdaptiveAvgPool2d((1, 1))
+        self.gap_size = 64
         
-        # Local Branch (8 neighbors) - acts as a skip connection for safety
+        # 4. Local Branch (The Safety)
         self.local_fc = nn.Linear(8, 32)
         
-        # Combined Body
-        self.fc1 = nn.Linear(self.flat_size + 32, hidden)
+        # 5. Fusion & Output
+        # Concat: [Spatial_Proj(256), GAP(64), Local(32)] = 352
+        fusion_size = 256 + 64 + 32
+        self.fc1 = nn.Linear(fusion_size, hidden)
         self.fc2 = nn.Linear(hidden, 4) # Action logits
+        
+        # Initialization
+        self._init_weights()
+
+    def _init_weights(self):
+        # Orthogonal Initialization for stability
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
+                nn.init.orthogonal_(m.weight, gain=nn.init.calculate_gain('relu'))
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        # x shape: (batch, obs_size)
-        # Split into global and local parts
         batch_size = x.shape[0]
+        device = x.device
         
-        # Global part: 4 * rows * cols
+        # Split Global / Local
         global_size = 4 * self.rows * self.cols
         global_part = x[:, :global_size]
-        local_part = x[:, global_size:] # Last 8 elements
+        local_part = x[:, global_size:] 
         
-        # Reshape global part to (batch, 4, rows, cols)
-        # Note: The input is flattened row-major from the environment
+        # Reshape Global
         global_view = global_part.view(batch_size, 4, self.rows, self.cols)
         
-        # CNN Forward Pass
-        x1 = F.relu(self.conv1(global_view))
-        x2 = F.relu(self.conv2(x1))
-        x3 = F.relu(self.conv3(x2))
+        # --- ADD CoordConv Channels ---
+        # Create normalized meshgrid (0..1)
+        xx = torch.linspace(0, 1, self.cols, device=device)
+        yy = torch.linspace(0, 1, self.rows, device=device)
+        grid_y, grid_x = torch.meshgrid(yy, xx, indexing='ij')
         
-        # Flatten
-        cnn_out = x3.view(batch_size, -1)
+        # Expand to batch: (B, 2, R, C)
+        coords = torch.stack([grid_y, grid_x], dim=0).unsqueeze(0).expand(batch_size, -1, -1, -1)
         
-        # Local Branch
-        local_out = F.relu(self.local_fc(local_part))
+        # Concat -> (B, 6, R, C)
+        x_in = torch.cat([global_view, coords], dim=1)
         
-        # Fusion
-        combined = torch.cat([cnn_out, local_out], dim=1)
+        # --- Spatial Branch ---
+        h = F.relu(self.conv1(x_in))
+        h = F.relu(self.conv2(h))
+        h = F.relu(self.conv3(h))
         
-        # FC Body - Use Tanh to prevent exploding values
-        h = torch.tanh(self.fc1(combined))
-        logits = self.fc2(h)
+        # Path A: Spatial Projection
+        spatial_flat = h.view(batch_size, -1)
+        spatial_proj = F.relu(self.spatial_proj(spatial_flat))
+        
+        # Path B: Global Context
+        global_ctx = self.gap(h).view(batch_size, -1)
+        
+        # --- Local Branch ---
+        local_feat = F.relu(self.local_fc(local_part))
+        
+        # --- Fusion ---
+        combined = torch.cat([spatial_proj, global_ctx, local_feat], dim=1)
+        
+        # Body
+        h_fc = F.relu(self.fc1(combined))
+        
+        # Logit Scaling (Temperature)
+        # Scale down to flatten distribution and prevent saturation
+        # Uses LOGIT_SCALE from config (e.g., 0.05 for very soft max)
+        logits = self.fc2(h_fc) * LOGIT_SCALE
         
         if mask is not None:
             logits = logits.masked_fill(mask <= 0.5, -1e9)
@@ -538,8 +572,13 @@ def train_reinforce(
                 'visited_ratio': visited_ratio
             })
 
+            # Calculate moving average of reward (last 100 episodes)
+            # We can use training_history to get recent rewards efficiently
+            recent_rewards = [h['reward'] for h in training_history[-100:]]
+            avg_reward = sum(recent_rewards) / len(recent_rewards) if recent_rewards else 0.0
+
             if episode % 100 == 0 or episode_idx == 0:
-                print(f"Episode {episode}: visited {n_visited}/{env.n_floor}, total_reward={total_reward:.2f}")
+                print(f"Episode {episode}: visited {n_visited}/{env.n_floor}, avg_reward_100={avg_reward:.2f}")
 
     except KeyboardInterrupt:
         print("\nTraining interrupted by user.")
