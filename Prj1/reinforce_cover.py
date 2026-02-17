@@ -329,6 +329,184 @@ class CNNPolicyNet(nn.Module):
             print(f"Weights file {filename} not found.")
 
 
+# --- GNN Implementation ---
+
+def get_grid_adjacency(rows: int, cols: int, device: torch.device) -> torch.Tensor:
+    """
+    Builds the adjacency matrix for a grid graph with self-loops.
+    Returns normalized adjacency matrix (D^-0.5 * A * D^-0.5).
+    """
+    num_nodes = rows * cols
+    adj = torch.eye(num_nodes, device=device) # Start with self-loops
+    
+    # Helper to get index
+    def get_idx(r, c):
+        return r * cols + c
+        
+    for r in range(rows):
+        for c in range(cols):
+            curr_idx = get_idx(r, c)
+            # Add neighbors
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < rows and 0 <= nc < cols:
+                    neighbor_idx = get_idx(nr, nc)
+                    adj[curr_idx, neighbor_idx] = 1.0
+                    
+    # Normalize: D^-0.5 * A * D^-0.5
+    degrees = adj.sum(dim=1)
+    d_inv_sqrt = torch.pow(degrees, -0.5)
+    d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.0
+    d_mat_inv_sqrt = torch.diag(d_inv_sqrt)
+    
+    norm_adj = d_mat_inv_sqrt @ adj @ d_mat_inv_sqrt
+    return norm_adj
+
+class GCNLayer(nn.Module):
+    def __init__(self, in_features: int, out_features: int):
+        super().__init__()
+        self.linear = nn.Linear(in_features, out_features, bias=False)
+        
+    def forward(self, x: torch.Tensor, adj: torch.Tensor) -> torch.Tensor:
+        # x: (Batch, Nodes, Features)
+        # adj: (Nodes, Nodes) - assumed shared across batch or (Batch, Nodes, Nodes)
+        
+        # 1. Linear Transform: X * W
+        out = self.linear(x) 
+        
+        # 2. Message Passing: A * (XW)
+        # Check if batch
+        if adj.dim() == 2:
+            out = torch.matmul(adj, out) # Broadcast adj over batch
+        else:
+            out = torch.bmm(adj, out)
+            
+        return out
+
+class GNNPolicyNet(nn.Module):
+    def __init__(self, rows: int, cols: int, hidden: int = 64):
+        super().__init__()
+        self.rows = rows
+        self.cols = cols
+        self.num_nodes = rows * cols
+        
+        # Inputs: Floor(1), Wall(1), Visited(1), Agent(1), CoordX(1), CoordY(1) = 6
+        self.input_features = 6
+        
+        # Adjacency matrix (computed lazily or stored buffer)
+        self.register_buffer('adj', None)
+        
+        # GCN Layers
+        self.gcn1 = GCNLayer(self.input_features, hidden)
+        self.gcn2 = GCNLayer(hidden, hidden)
+        self.gcn3 = GCNLayer(hidden, hidden)
+        
+        # Readout & Policy
+        # We concat [GlobalMeanPool, AgentNodeEmbedding]
+        self.fc1 = nn.Linear(hidden + hidden, 128)
+        self.fc2 = nn.Linear(128, 4)
+        
+        self._init_weights()
+        
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.orthogonal_(m.weight, gain=nn.init.calculate_gain('relu'))
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+                    
+    def _ensure_adj(self, device):
+        if self.adj is None:
+            self.adj = get_grid_adjacency(self.rows, self.cols, device)
+
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        # x input is flattened vector from environment: (Batch, obs_size)
+        # We need to reshape/process it into (Batch, Nodes, Features)
+        
+        batch_size = x.shape[0]
+        device = x.device
+        self._ensure_adj(device)
+        
+        # 1. Parse Input
+        # Obs: [ExploreFloor(N), ExploreWall(N), Visited(N), Agent(N), Local(8)]
+        # We ignore Local(8) for the graph part, or append it? 
+        # Plan: Use the 4 grid maps + Generate Coords
+        
+        grid_size = 4 * self.num_nodes
+        grid_part = x[:, :grid_size].view(batch_size, 4, self.num_nodes)
+        # grid_part shape: (B, 4, N)
+        # We want (B, N, 4)
+        node_features = grid_part.permute(0, 2, 1) 
+        
+        # Add Coords
+        xx = torch.linspace(0, 1, self.cols, device=device)
+        yy = torch.linspace(0, 1, self.rows, device=device)
+        grid_y, grid_x = torch.meshgrid(yy, xx, indexing='ij')
+        coords = torch.stack([grid_y.flatten(), grid_x.flatten()], dim=1) # (N, 2)
+        coords = coords.unsqueeze(0).expand(batch_size, -1, -1) # (B, N, 2)
+        
+        # Combine -> (B, N, 6)
+        h = torch.cat([node_features, coords], dim=-1)
+        
+        # 2. GCN Layers
+        h = F.relu(self.gcn1(h, self.adj))
+        h = F.relu(self.gcn2(h, self.adj))
+        h = F.relu(self.gcn3(h, self.adj)) # (B, N, hidden)
+        
+        # 3. Readout
+        # A. Global Pooling (Mean)
+        global_ctx = h.mean(dim=1) # (B, hidden)
+        
+        # B. Agent Node Embedding
+        # Find agent index from input x (channel 3 is agent pos)
+        # agent_map = x[:, 3*N : 4*N] -> argmax
+        agent_global_idx = x[:, 3*self.num_nodes : 4*self.num_nodes].argmax(dim=1) # (B,)
+        
+        # Gather embedding from h using batch index
+        # h: (B, N, H)
+        agent_embed = h[torch.arange(batch_size), agent_global_idx] # (B, H)
+        
+        # 4. Fusion
+        combined = torch.cat([global_ctx, agent_embed], dim=1) # (B, 2*H)
+        
+        # 5. Policy Head
+        h_fc = F.relu(self.fc1(combined))
+        logits = self.fc2(h_fc) * LOGIT_SCALE
+        
+        if mask is not None:
+            logits = logits.masked_fill(mask <= 0.5, -1e9)
+            
+        return logits
+        
+    # Standard Policy methods interface
+    def get_action(self, x: torch.Tensor, mask: torch.Tensor, deterministic: bool = False) -> Tuple[int, torch.Tensor]:
+        with torch.no_grad():
+            logits = self.forward(x, mask)
+            if deterministic:
+                action = logits.argmax(dim=-1).item()
+            else:
+                probs = F.softmax(logits, dim=-1)
+                dist = torch.distributions.Categorical(probs)
+                action = dist.sample().item()
+        logits = self.forward(x, mask)
+        log_prob = F.log_softmax(logits, dim=-1)[0, action]
+        return action, log_prob
+
+    def save_weights(self, filename: str):
+        torch.save(self.state_dict(), filename)
+        print(f"Weights saved to {filename}")
+
+    def load_weights(self, filename: str, device: torch.device):
+        if os.path.exists(filename):
+            try:
+                self.load_state_dict(torch.load(filename, map_location=device), strict=False)
+                print(f"Weights loaded from {filename}")
+            except Exception as e:
+                print(f"Error loading weights: {e}")
+        else:
+            print(f"Weights file {filename} not found.")
+
+
 def compute_returns(rewards: List[float], gamma: float = 0.99) -> List[float]:
     R = 0.0
     returns = []
@@ -360,6 +538,9 @@ def train_reinforce(
     if MODEL_TYPE == "CNN":
         policy = CNNPolicyNet(room.rows, room.cols).to(device)
         print(f"Initialized CNN Policy (Rows={room.rows}, Cols={room.cols})")
+    elif MODEL_TYPE == "GNN":
+        policy = GNNPolicyNet(room.rows, room.cols).to(device)
+        print(f"Initialized GNN Policy (Nodes={room.rows*room.cols})")
     else:
         policy = PolicyNet(env.obs_size).to(device)
         print(f"Initialized MLP Policy (Input Size={env.obs_size})")

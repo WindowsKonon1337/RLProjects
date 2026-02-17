@@ -5,8 +5,7 @@ All game parameters, colors, and settings are defined here.
 
 # === GAME PARAMETERS ===
 GRID_SIZE = 5 + 2  # Size of the game grid (10x10)
-OBSTACLE_PROB = 0.1  # Probability of obstacle generation
-START_POSITION = (1, GRID_SIZE - 2)  # Agent starts near top-left, avoiding walls
+OBSTACLE_PROB = 0.1 # Probability of obstacle generation
 
 # === VISUAL PARAMETERS ===
 CELL_SIZE = 50  # Size of each cell in pixels
@@ -20,8 +19,8 @@ INFO_HEIGHT = 100  # Height of bottom info area
 LR = 1e-4  # Learning rate
 GAMMA = 0.99  # Discount factor
 HEADLESS_EPISODES = 100  # Episodes before visualization starts
-CNN_INPUT_REGULARIZATION = 1e-5 # Regularization for first layer
-LOGIT_SCALE = 0.05 # "Temperature" for Softmax. Lower = Softer (Flatter) distribution. 0.1 was soft, 0.05 is VERY soft.
+CNN_INPUT_REGULARIZATION = 0 # Regularization for first layer
+LOGIT_SCALE = 0.01 # "Temperature" for Softmax. Lower = Softer (Flatter) distribution. 0.1 was soft, 0.05 is VERY soft.
 
 # === REWARD PARAMETERS ===
 REWARD_VISITED = -0.2  # Penalty for revisiting a cell
@@ -58,7 +57,7 @@ FPS = 60  # Frames per second
 AUTO_STEP_DELAY = 100  # Milliseconds between auto steps
 
 # === SIMULATION SETTINGS ===
-ENABLE_VISUALIZATION = True  # Set to False to run without pygame visualization
+ENABLE_VISUALIZATION = False  # Set to False to run without pygame visualization
 ENABLE_LOGGING = True  # Set to False to disable logging to file
 LOG_FILE = "Prj1/game_log.log"  # Log file name
 VERBOSE_CONSOLE = True  # Print detailed info to console
@@ -68,7 +67,7 @@ MAX_STEPS_PER_EPISODE = 200  # Maximum steps before episode ends
 HEADLESS_EPISODES = 1000 # Number of episodes to run in headless mode
 
 # === MODEL SETTINGS ===
-MODEL_TYPE = "CNN" # "MLP" or "CNN"
+MODEL_TYPE = "GNN" # "MLP" or "CNN" or "GNN"
 CNN_INPUT_REGULARIZATION =  0 #1e-4 # L2 penalty for CNN input layer
 
 # === WEIGHTS MANAGEMENT ===

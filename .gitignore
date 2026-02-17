@@ -5,3 +5,5 @@ __py*__
 graph*.png
 *.log
 *.pth
+*training_plot*
+*training_stats*
