@@ -1,6 +1,9 @@
 # Start
 
-launch:
+## launch:
+
+Install dependencies:
+
 
 ```bash
 uv sync
@@ -8,9 +11,14 @@ uv sync
 
 How to install uv: [link](https://docs.astral.sh/uv/getting-started/installation/)
 
-How to run: 
+## How to run: 
+
+### Project 1
+
 ```bash
-python reinforce_cover.py
+cd Prj1 && uv run python reinforce_cover.py
 ```
 
-Change `Config.py` to change parameters.
+* Project 1 [readme](./Prj1/README.md)
+
+* Project 1 [description](./Prj1/PROJECT_DESCRIPTION.md)

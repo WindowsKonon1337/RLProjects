@@ -209,14 +209,8 @@ class CNNPolicyNet(nn.Module):
         self.rows = rows
         self.cols = cols
         
-        # --- Final Architecture: Parallel Branches + CoordConv ---
-        
-        # 1. Inputs
-        # Global: 4 dynamic channels (Floor, Wall, Visit, Pos) + 2 static (CoordX, CoordY) = 6
         self.input_channels = 6
         
-        # 2. Spatial Branch (The Map) -> No Pooling, Stride 1
-        # 2. Spatial Branch (The Map) -> No Pooling, Stride 1
         self.conv1 = nn.Conv2d(self.input_channels, 32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(32)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
@@ -224,29 +218,21 @@ class CNNPolicyNet(nn.Module):
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
         self.bn3 = nn.BatchNorm2d(64)
         
-        # Projection for Fusion Bottleneck
-        # Deep RL trick: Compress massive spatial maps so they don't drown out other signals
         self.flat_spatial_size = 64 * rows * cols
         self.spatial_proj = nn.Linear(self.flat_spatial_size, 256)
         
-        # 3. Global Context Branch (The Stats)
         self.gap = nn.AdaptiveAvgPool2d((1, 1))
         self.gap_size = 64
         
-        # 4. Local Branch (The Safety)
         self.local_fc = nn.Linear(8, 32)
         
-        # 5. Fusion & Output
-        # Concat: [Spatial_Proj(256), GAP(64), Local(32)] = 352
         fusion_size = 256 + 64 + 32
         self.fc1 = nn.Linear(fusion_size, hidden)
         self.fc2 = nn.Linear(hidden, 4) # Action logits
         
-        # Initialization
         self._init_weights()
 
     def _init_weights(self):
-        # Orthogonal Initialization for stability
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.orthogonal_(m.weight, gain=nn.init.calculate_gain('relu'))
@@ -257,50 +243,35 @@ class CNNPolicyNet(nn.Module):
         batch_size = x.shape[0]
         device = x.device
         
-        # Split Global / Local
         global_size = 4 * self.rows * self.cols
         global_part = x[:, :global_size]
         local_part = x[:, global_size:] 
         
-        # Reshape Global
         global_view = global_part.view(batch_size, 4, self.rows, self.cols)
         
-        # --- ADD CoordConv Channels ---
-        # Create normalized meshgrid (0..1)
         xx = torch.linspace(0, 1, self.cols, device=device)
         yy = torch.linspace(0, 1, self.rows, device=device)
         grid_y, grid_x = torch.meshgrid(yy, xx, indexing='ij')
         
-        # Expand to batch: (B, 2, R, C)
         coords = torch.stack([grid_y, grid_x], dim=0).unsqueeze(0).expand(batch_size, -1, -1, -1)
         
-        # Concat -> (B, 6, R, C)
         x_in = torch.cat([global_view, coords], dim=1)
         
-        # --- Spatial Branch ---
         h = F.relu(self.bn1(self.conv1(x_in)))
         h = F.relu(self.bn2(self.conv2(h)))
         h = F.relu(self.bn3(self.conv3(h)))
         
-        # Path A: Spatial Projection
         spatial_flat = h.view(batch_size, -1)
         spatial_proj = F.relu(self.spatial_proj(spatial_flat))
         
-        # Path B: Global Context
         global_ctx = self.gap(h).view(batch_size, -1)
         
-        # --- Local Branch ---
         local_feat = F.relu(self.local_fc(local_part))
         
-        # --- Fusion ---
         combined = torch.cat([spatial_proj, global_ctx, local_feat], dim=1)
         
-        # Body
         h_fc = F.relu(self.fc1(combined))
         
-        # Logit Scaling (Temperature)
-        # Scale down to flatten distribution and prevent saturation
-        # Uses LOGIT_SCALE from config (e.g., 0.05 for very soft max)
         logits = self.fc2(h_fc) * LOGIT_SCALE
         
         if mask is not None:
@@ -343,14 +314,12 @@ def get_grid_adjacency(rows: int, cols: int, device: torch.device) -> torch.Tens
     num_nodes = rows * cols
     adj = torch.eye(num_nodes, device=device) # Start with self-loops
     
-    # Helper to get index
     def get_idx(r, c):
         return r * cols + c
         
     for r in range(rows):
         for c in range(cols):
             curr_idx = get_idx(r, c)
-            # Add neighbors
             for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < rows and 0 <= nc < cols:
@@ -550,14 +519,11 @@ def train_reinforce(
         print(f"Initialized MLP Policy (Input Size={env.obs_size})")
 
     
-    # Load weights if configured
     if LOAD_EXISTING_WEIGHTS:
         policy.load_weights(WEIGHTS_FILE, device)
         
     optimizer = None
     if MODEL_TYPE == "CNN":
-        # Regularization on Input Weights (conv1.weight)
-        # param_groups allows different weight_decay
         optimizer = torch.optim.Adam([
             {'params': policy.conv1.parameters(), 'weight_decay': CNN_INPUT_REGULARIZATION},
             {'params': policy.conv2.parameters()}, # Default 0
@@ -572,7 +538,6 @@ def train_reinforce(
     else:
         optimizer = torch.optim.Adam(policy.parameters(), lr=lr)
 
-    # Initialize Pygame if enabled
     screen = None
     font = None
     small_font = None
@@ -582,15 +547,12 @@ def train_reinforce(
     if ENABLE_VISUALIZATION:
         screen, font, small_font, tiny_font, clock = init_pygame()
         
-    # Persistent auto_mode state
     auto_mode = False 
 
-    # Initialize stats
     training_history: List[dict] = []
     start_episode = 0
     
     if LOAD_EXISTING_WEIGHTS:
-        # Load previous history if weights are loaded
         stats_file = TRAINING_STATS_FILE if TRAIN_MODE else INFERENCE_STATS_FILE
         training_history = load_stats_json(stats_file)
         if training_history:
@@ -599,23 +561,19 @@ def train_reinforce(
 
     try:
         for episode_idx in range(num_episodes):
-            episode = start_episode + episode_idx + 1 # Cumulative episode number
+            episode = start_episode + episode_idx + 1
             
-            # Generate new room for each episode
-            # We use the dimensions of the passed 'room' to be safe, or from config
             current_room = build_random_room(
                 rows=room.rows, 
                 cols=room.cols, 
                 add_walls=True, 
                 max_obstacle_ratio=OBSTACLE_PROB, 
-                rng=random.Random() # New random seed each time (or omitted to use system time)
+                rng=random.Random() 
             )
             
-            # Re-initialize environment with the new room
-            # Note: We assume obs_size remains constant (based on fixed rows/cols)
             env = FloorCoverEnv(current_room, max_steps=max_steps)
 
-            obs, _ = env.reset() # Random start
+            obs, _ = env.reset() 
             traj_log_probs: List[torch.Tensor] = []
             rewards: List[float] = []
             
@@ -626,10 +584,8 @@ def train_reinforce(
             while True:
                 step_once = False
                 
-                # User Action Override
                 manual_action = None
                 
-                # Handle Pygame events if visualization is enabled
                 if ENABLE_VISUALIZATION:
                     for event in pygame.event.get():
                         if event.type == pygame.QUIT:
@@ -641,67 +597,51 @@ def train_reinforce(
                                 sys.exit()
                             if event.key == pygame.K_SPACE:
                                 if auto_mode:
-                                    auto_mode = False # Stop auto if running
+                                    auto_mode = False 
                                 else:
-                                    step_once = True # Single step if paused
+                                    step_once = True
                             if event.key == pygame.K_a:
-                                auto_mode = not auto_mode # Toggle auto
-                            if event.key == pygame.K_r: # Reset Key (User req 3)
+                                auto_mode = not auto_mode
+                            if event.key == pygame.K_r:
                                 reset_requested = True
                                 
-                            # Manual Control (Arrows)
-                            # Remapped for Visual Orientation (Row=X, Col=Y flipped)
                             if event.key == pygame.K_UP:
-                                manual_action = RIGHT # Visual Up
+                                manual_action = RIGHT 
                             elif event.key == pygame.K_DOWN:
-                                manual_action = LEFT  # Visual Down
+                                manual_action = LEFT 
                             elif event.key == pygame.K_LEFT:
-                                manual_action = UP    # Visual Left
+                                manual_action = UP
                             elif event.key == pygame.K_RIGHT:
-                                manual_action = DOWN  # Visual Right
+                                manual_action = DOWN 
                 
                 if reset_requested:
-                    break # Break inner loop, will start next episode
+                    break 
 
-                # Decide if we should proceed with a step
-                # Step if auto_mode, OR step_once, OR manual action was pressed
                 should_step = auto_mode or step_once or (manual_action is not None)
 
-                # If NOT stepping (Paused), just draw and wait
                 if not should_step and ENABLE_VISUALIZATION:
-                    # Need to construct state for draw_grid
                     state_info = env._get_info()
                     vis_state = {
                         'agent_pos': state_info['agent_pos'],
                         'visited': state_info['visited_set'],
                     }
                     
-                    # Get action probs for visualization (optional)
                     x = torch.from_numpy(obs).float().unsqueeze(0).to(device)
                     mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
                     with torch.no_grad():
                         logits = policy(x, mask)
                         probs = F.softmax(logits, dim=-1).cpu().numpy()[0]
                     
-                    # waiting=True shows "WAITING"
                     draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, episode, True, step, action_probs=probs)
                     clock.tick(FPS)
                     continue
 
-                # Taking a step
                 x = torch.from_numpy(obs).float().unsqueeze(0).to(device)  # (1, obs_size)
                 mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
                 
                 if manual_action is not None:
-                     # Force manual action (User Request)
-                     # Even if it's a wall (mask=0), we perform the action.
-                     # Env will handle the wall collision (no move, penalty).
                      action = manual_action
 
-                     # Compute log_prob for the manual action.
-                     # CRITICAL: We must NOT pass the mask to policy() here, because if the action 
-                     # is a wall, masked logits would be -1e9, leading to log_prob = -inf.
-                     # We want the "raw" probability the policy assigns to this action.
                      logits = policy(x, mask=None) 
                      log_prob = F.log_softmax(logits, dim=-1)[0, action]
                 else:
@@ -709,7 +649,6 @@ def train_reinforce(
                 
                 traj_log_probs.append(log_prob)
                 
-                # Calculate action probs for visualization
                 probs = None
                 if ENABLE_VISUALIZATION:
                      with torch.no_grad():
@@ -730,7 +669,6 @@ def train_reinforce(
                     if episode < HEADLESS_EPISODES:
                          pygame.event.pump() # Keep window responsive
                     else:
-                        # waiting=False shows "Episode X Step Y"
                         draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, episode, False, step, action_probs=probs)
                         pygame.display.flip()
                     if auto_mode and AUTO_STEP_DELAY > 0:
@@ -739,7 +677,6 @@ def train_reinforce(
                 if done:
                     break
             
-            # Policy Update
             if TRAIN_MODE:
                 returns = compute_returns(rewards, gamma=gamma)
                 baseline = sum(returns) / len(returns) if returns else 0.0
@@ -750,7 +687,6 @@ def train_reinforce(
                 policy_loss.backward()
                 optimizer.step()
             
-            # --- Stats Collection ---
             n_visited = env._get_info()["visited"]
             total_reward = sum(rewards)
             visited_ratio = n_visited / env.n_floor
@@ -761,8 +697,6 @@ def train_reinforce(
                 'visited_ratio': visited_ratio
             })
 
-            # Calculate moving average of reward (last 100 episodes)
-            # We can use training_history to get recent rewards efficiently
             recent_rewards = [h['reward'] for h in training_history[-100:]]
             avg_reward = sum(recent_rewards) / len(recent_rewards) if recent_rewards else 0.0
 
@@ -775,7 +709,6 @@ def train_reinforce(
         if SAVE_WEIGHTS and TRAIN_MODE:
             policy.save_weights(WEIGHTS_FILE)
             
-        # Save persistence stats
         if training_history:
             stats_file = TRAINING_STATS_FILE if TRAIN_MODE else INFERENCE_STATS_FILE
             save_stats_json(training_history, stats_file)
@@ -792,13 +725,11 @@ def evaluate_policy(room: RoomGraph, policy: PolicyNet, num_episodes: int = 5, d
     
     policy.eval()
     
-    # Check if we should visualize evaluation
     screen = None
     if ENABLE_VISUALIZATION:
          screen, font, small_font, tiny_font, clock = init_pygame()
          
     for ep in range(num_episodes):
-        # Generate new room for evaluation as well
         current_room = build_random_room(
             rows=room.rows, 
             cols=room.cols, 
@@ -813,7 +744,6 @@ def evaluate_policy(room: RoomGraph, policy: PolicyNet, num_episodes: int = 5, d
         steps = 0
         G = 0.0
         while steps < env.max_steps:
-             # Handle Pygame events
             if ENABLE_VISUALIZATION:
                 for event in pygame.event.get():
                         if event.type == pygame.QUIT:
@@ -827,7 +757,6 @@ def evaluate_policy(room: RoomGraph, policy: PolicyNet, num_episodes: int = 5, d
             mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
             action, _ = policy.get_action(x, mask, deterministic=True)
             
-            # Vis info
             probs = None
             if ENABLE_VISUALIZATION:
                 with torch.no_grad():
