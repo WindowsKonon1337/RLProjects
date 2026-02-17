@@ -65,7 +65,7 @@ VERBOSE_CONSOLE = True  # Print detailed info to console
 # === EPISODE SETTINGS ===
 MAX_STEPS_PER_EPISODE = 200  # Maximum steps before episode ends
 NUM_EPISODES = 30000 # Total number of episodes to run
-HEADLESS_EPISODES = 100 # Number of episodes to run without visualization (fast forward)
+HEADLESS_EPISODES = 1000 # Number of episodes to run without visualization (fast forward)
 
 # === MODEL SETTINGS ===
 MODEL_TYPE = "CNN" # "MLP" or "CNN" or "GNN"
@@ -81,4 +81,4 @@ SAVE_WEIGHTS = False
 TRAINING_STATS_FILE = f"Prj1/training_stats_{MODEL_TYPE}.json"
 INFERENCE_STATS_FILE = f"Prj1/inference_stats_{MODEL_TYPE}.json"
 TRAINING_PLOT_FILE = f"Prj1/training_plot_{MODEL_TYPE}.png"
-PLOT_TRAINING_CURVE = True
+PLOT_TRAINING_CURVE = False
