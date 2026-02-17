@@ -70,7 +70,7 @@ def _episode_return(traj, gamma=1.0):
     return G
 
 
-def reinforce_update(traj, alpha=0.001, gamma=1.0, beta_v=0.2, use_state_baseline=True):
+def reinforce_update(traj, alpha=0.1, gamma=1.0, beta_v=0.2, use_state_baseline=True):
     """
     One REINFORCE update with formula:
 

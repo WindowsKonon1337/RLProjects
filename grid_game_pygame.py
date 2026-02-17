@@ -12,9 +12,12 @@ Controls (when visualization enabled):
 import sys
 import time
 from datetime import datetime
+import numpy as np
+import matplotlib.pyplot as plt
 from config import (START_POSITION, MAX_STEPS_PER_EPISODE, FPS, AUTO_STEP_DELAY,
                     ENABLE_VISUALIZATION, ENABLE_LOGGING, LOG_FILE, VERBOSE_CONSOLE,
-                    REWARD_COMPLETION, HEADLESS_EPISODES)
+                    REWARD_COMPLETION, HEADLESS_EPISODES, ENABLE_TRAINING_PLOT,
+                    MOVING_AVERAGE_WINDOW, TRAINING_PLOT_PATH, SHOW_TRAINING_PLOT)
 from scene import create_scene_graph, reset_graph, check_completion, get_completion_stats
 from rl_functions import get_state, sample_step, reward
 from reinforce import reinforce_update
@@ -40,6 +43,54 @@ def append_return_log(episode, steps, G, completed, path=RETURNS_LOG_PATH):
     """
     with open(path, "a", encoding="utf-8") as f:
         f.write(f"{episode}\t{steps}\t{float(G)}\t{int(completed)}\n")
+
+
+def compute_moving_average(values, window):
+    """
+    Compute rolling average with a fixed window.
+    """
+    if len(values) == 0:
+        return np.array([], dtype=np.float64)
+
+    win = max(1, int(window))
+    if len(values) < win:
+        return np.array([float(np.mean(values))], dtype=np.float64)
+
+    kernel = np.ones(win, dtype=np.float64) / win
+    return np.convolve(np.asarray(values, dtype=np.float64), kernel, mode="valid")
+
+
+def save_training_plot(episodes_data, window=MOVING_AVERAGE_WINDOW, path=TRAINING_PLOT_PATH):
+    """
+    Save training curve with raw return and moving average.
+    """
+    if not episodes_data:
+        logger.log("No episodes data for training plot.", console=False)
+        return
+
+    returns = [float(ep["G"]) for ep in episodes_data]
+    episodes = np.arange(1, len(returns) + 1)
+
+    ma = compute_moving_average(returns, window=window)
+    ma_start_episode = max(1, int(window))
+    ma_episodes = np.arange(ma_start_episode, ma_start_episode + len(ma))
+
+    plt.figure(figsize=(11, 6))
+    plt.plot(episodes, returns, color="#4C78A8", alpha=0.35, linewidth=1.0, label="Return per episode")
+    plt.plot(ma_episodes, ma, color="#F58518", linewidth=2.2, label=f"Moving average ({max(1, int(window))})")
+    plt.title("Agent Training Curve")
+    plt.xlabel("Episode")
+    plt.ylabel("Return G")
+    plt.grid(True, alpha=0.25)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(path, dpi=160)
+    logger.log(f"Training plot saved: {path}")
+
+    if SHOW_TRAINING_PLOT:
+        plt.show()
+    else:
+        plt.close()
 
 class GameLogger:
     """Handles logging to both file and console"""
@@ -295,6 +346,8 @@ def main():
     
     # Log final statistics
     logger.log_statistics(episodes_data)
+    if ENABLE_TRAINING_PLOT:
+        save_training_plot(episodes_data)
     logger.log("\n=== Game Ended ===")
     
     if ENABLE_VISUALIZATION:

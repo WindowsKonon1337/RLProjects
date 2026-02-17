@@ -47,7 +47,7 @@ REWARD_COLOR_NEGATIVE = (255, 100, 100)
 
 # === PYGAME SETTINGS ===
 FPS = 60  # Frames per second
-AUTO_STEP_DELAY = 100  # Milliseconds between auto steps
+AUTO_STEP_DELAY = 1  # Milliseconds between auto steps
 
 # === SIMULATION SETTINGS ===
 ENABLE_VISUALIZATION = False  # Set to False to run without pygame visualization
@@ -56,5 +56,11 @@ LOG_FILE = "game_log.log"  # Log file name
 VERBOSE_CONSOLE = True  # Print detailed info to console
 
 # === EPISODE SETTINGS ===
-MAX_STEPS_PER_EPISODE = 500  # Maximum steps before episode ends
-HEADLESS_EPISODES = 1000 # Number of episodes to run in headless mode 
+MAX_STEPS_PER_EPISODE = 100  # Maximum steps before episode ends
+HEADLESS_EPISODES = 50000 # Number of episodes to run in headless mode 
+
+# === TRAINING PLOT SETTINGS ===
+ENABLE_TRAINING_PLOT = True  # Build learning curve after run
+MOVING_AVERAGE_WINDOW = 100  # Window size for rolling average
+TRAINING_PLOT_PATH = "training_curve.png"  # Output image path
+SHOW_TRAINING_PLOT = False  # Show matplotlib window (may block)
