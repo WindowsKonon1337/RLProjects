@@ -16,10 +16,17 @@ TOP_MARGIN = 120  # Top margin for info display
 LEGEND_WIDTH = 280  # Width of legend sidebar
 INFO_HEIGHT = 100  # Height of bottom info area
 
+# === RL HYPERPARAMETERS ===
+LR = 1e-4  # Learning rate
+GAMMA = 0.99  # Discount factor
+HEADLESS_EPISODES = 100  # Episodes before visualization starts
+CNN_INPUT_REGULARIZATION = 1e-5 # Regularization for first layer
+LOGIT_SCALE = 0.05 # "Temperature" for Softmax. Lower = Softer (Flatter) distribution. 0.1 was soft, 0.05 is VERY soft.
+
 # === REWARD PARAMETERS ===
 REWARD_VISITED = -0.2  # Penalty for revisiting a cell
 REWARD_NEW = 1.0  # Reward for visiting a new cell
-REWARD_COMPLETION = 20.0  # Bonus reward for visiting all non-obstacle cells
+REWARD_COMPLETION = 0 # 20.0  # Bonus reward for visiting all non-obstacle cells
 REWARD_STEP = -0.01 # Penalty for each step
 
 # === COLORS ===
@@ -58,19 +65,19 @@ VERBOSE_CONSOLE = True  # Print detailed info to console
 
 # === EPISODE SETTINGS ===
 MAX_STEPS_PER_EPISODE = 200  # Maximum steps before episode ends
-HEADLESS_EPISODES = 100 # Number of episodes to run in headless mode
+HEADLESS_EPISODES = 1000 # Number of episodes to run in headless mode
 
 # === MODEL SETTINGS ===
 MODEL_TYPE = "CNN" # "MLP" or "CNN"
-CNN_INPUT_REGULARIZATION = 1e-4 # L2 penalty for CNN input layer
+CNN_INPUT_REGULARIZATION =  0 #1e-4 # L2 penalty for CNN input layer
 
 # === WEIGHTS MANAGEMENT ===
-WEIGHTS_FILE = "Prj1/policy_weights.pth"
+WEIGHTS_FILE = f"Prj1/policy_weights_{MODEL_TYPE}.pth"
 LOAD_EXISTING_WEIGHTS = True
 SAVE_WEIGHTS = True
 
 
 # === TRAINING STATS ===
-TRAINING_STATS_FILE = "Prj1/training_stats.json"
-TRAINING_PLOT_FILE = "Prj1/training_plot.png"
+TRAINING_STATS_FILE = f"Prj1/training_stats_{MODEL_TYPE}.json"
+TRAINING_PLOT_FILE = f"Prj1/training_plot_{MODEL_TYPE}.png"
 PLOT_TRAINING_CURVE = True
