@@ -30,7 +30,7 @@ REWARD_COMPLETION = 0 # 20.0  # Bonus reward for visiting all non-obstacle cells
 REWARD_STEP = -0.01 # Penalty for each step
 
 # === COLORS ===
-# Background
+# Background color
 BG_COLOR = (20, 22, 35)
 
 # Grid cells (not observed)
