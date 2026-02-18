@@ -15,10 +15,15 @@ How to install uv: [link](https://docs.astral.sh/uv/getting-started/installation
 
 ### Project 1
 
+* [README](./Prj1/README.md)
+* [Description](./Prj1/PROJECT_DESCRIPTION.md)
+
+**Training:**
 ```bash
-cd Prj1 && uv run python reinforce_cover.py
+uv run Prj1/train.py
 ```
 
-* Project 1 [readme](./Prj1/README.md)
-
-* Project 1 [description](./Prj1/PROJECT_DESCRIPTION.md)
+**Evaluation:**
+```bash
+uv run Prj1/eval.py
+```

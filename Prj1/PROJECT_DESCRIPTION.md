@@ -163,10 +163,10 @@ In the final policy decision we use:
 
 
 ### Return per episode without obstacles
-![Return per episode](5x5100steps.png)
+![Return per episode](assets/5x5100steps.png)
 
 ### Return per episode with obstacles
-![Return per episode](50000steps.png)
+![Return per episode](assets/50000steps.png)
 
 
 ## 4. State Change and Room Generation (New Logic)
@@ -209,7 +209,7 @@ Uses the same REINFORCE algorithm.
 
 ### 5.3 Results
 
-![MLP Training Plot](MLP_PLOT.png)
+![MLP Training Plot](assets/MLP_PLOT.png)
 
 ---
 
@@ -247,8 +247,8 @@ Similar to REINFORCE, but with added **Input Regularization** on the weights of 
 
   - (-) Can get stuck in local minima.
 
-![CNN Training Plot](CNN_PLOT.png)
-![CNN gif](CNN_visualisation.gif)
+![CNN Training Plot](assets/CNN_PLOT.png)
+![CNN gif](assets/CNN_visualisation.gif)
 
 ## 7. Comparison with DFS Heuristic
 
@@ -264,17 +264,17 @@ A greedy depth-first search algorithm with backtracking is implemented:
      - Agent pops the previous position from `stack`.
      - Steps back to that position.
 
-![DFS gif](DFS_visualisation.gif)
+![DFS gif](assets/DFS_visualisation.gif)
 
 ### 7.2 Comparison
 
 ### DFS vs CNN vs MLP vs Classic Reinforce Performance
 HEURISTIC
-![Heuristic Plot](HEURISTIC_PLOT.png)
+![Heuristic Plot](assets/HEURISTIC_PLOT.png)
 CNN
-![CNN Training Plot](CNN_PLOT.png)
+![CNN Training Plot](assets/CNN_PLOT.png)
 MLP
-![MLP Training Plot](MLP_PLOT.png)
+![MLP Training Plot](assets/MLP_PLOT.png)
 CLASSIC REINFORCE
 Take into account, here 50 000 steps were made for Classic Reinforce.
-![Return per episode](50000steps.png)
+![Return per episode](assets/50000steps.png)

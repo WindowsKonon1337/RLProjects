@@ -3,6 +3,9 @@ Configuration file for Grid World RL Game
 All game parameters, colors, and settings are defined here.
 """
 
+# === REPRODUCIBILITY ===
+RANDOM_SEED = 42  # Fixed seed for reproducibility (set to None to disable)
+
 # === GAME PARAMETERS ===
 GRID_SIZE = 5 + 2  # Size of the game grid (10x10)
 OBSTACLE_PROB = 0.1 # Probability of obstacle generation
@@ -60,26 +63,28 @@ AUTO_STEP_DELAY = 100  # Milliseconds between auto steps
 # === SIMULATION SETTINGS ===
 ENABLE_VISUALIZATION = True  # Set to False to run without pygame visualization
 ENABLE_LOGGING = True  # Set to False to disable logging to file
-LOG_FILE = "Prj1/game_log.log"  # Log file name
+LOG_FILE = "Prj1/results/game_log.log"  # Log file path (used by train.py / eval.py)
+LOG_LEVEL = "INFO"  # Logging verbosity: DEBUG, INFO, WARNING, ERROR
 VERBOSE_CONSOLE = True  # Print detailed info to console
 
 # === EPISODE SETTINGS ===
 MAX_STEPS_PER_EPISODE = 200  # Maximum steps before episode ends
-NUM_EPISODES = 30000 # Total number of episodes to run
-HEADLESS_EPISODES = 1000 # Number of episodes to run without visualization (fast forward)
+NUM_EPISODES = 30000          # Total number of training episodes
+EVAL_EPISODES = 20            # Number of episodes to run during evaluation
+HEADLESS_EPISODES = 1000     # Number of episodes to run without visualization (fast forward)
 
 # === MODEL SETTINGS ===
 MODEL_TYPE = "HEURISTIC_DFS" # "MLP" or "CNN" or "GNN"
 CNN_INPUT_REGULARIZATION =  0 #1e-4 # L2 penalty for CNN input layer
 
 # === WEIGHTS MANAGEMENT ===
-WEIGHTS_FILE = f"Prj1/policy_weights_{MODEL_TYPE}.pth"
-LOAD_EXISTING_WEIGHTS = False
+WEIGHTS_FILE = f"Prj1/results/policy_weights_{MODEL_TYPE}.pth"
+LOAD_EXISTING_WEIGHTS = True
 SAVE_WEIGHTS = False
 
 
 # === TRAINING STATS ===
-TRAINING_STATS_FILE = f"Prj1/training_stats_{MODEL_TYPE}.json"
-INFERENCE_STATS_FILE = f"Prj1/inference_stats_{MODEL_TYPE}.json"
-TRAINING_PLOT_FILE = f"Prj1/training_plot_{MODEL_TYPE}.png"
+TRAINING_STATS_FILE = f"Prj1/results/training_stats_{MODEL_TYPE}.json"
+INFERENCE_STATS_FILE = f"Prj1/results/inference_stats_{MODEL_TYPE}.json"
+TRAINING_PLOT_FILE = f"Prj1/results/training_plot_{MODEL_TYPE}.png"
 PLOT_TRAINING_CURVE = False

@@ -1,4 +1,5 @@
 import random
+import logging
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,23 +8,33 @@ import sys
 import os
 from typing import List, Tuple, Optional
 from collections import deque
+from types import SimpleNamespace
 
 # Import config
 from config import *
+
+# Module-level logger — configured by train.py / eval.py, or falls back to root logger
+logger = logging.getLogger("rl")
+if not logger.handlers:
+    # Fallback: basic console handler when run directly
+    _ch = logging.StreamHandler(sys.stdout)
+    _ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"))
+    logger.addHandler(_ch)
+    logger.setLevel(logging.INFO)
 
 # Import visualization if needed
 try:
     import pygame
     from visualization import init_pygame, draw_grid
 except ImportError:
-    print("Pygame not found. Visualization disabled.")
+    logger.warning("Pygame not found. Visualization disabled.")
     ENABLE_VISUALIZATION = False
 
 # Import plotting utils
 try:
     from visualization_utils import plot_training_results, save_stats_json, load_stats_json
 except ImportError:
-    print("visualization_utils not found or matplotlib missing.")
+    logger.warning("visualization_utils not found or matplotlib missing.")
     PLOT_TRAINING_CURVE = False
 
 from room_graph import (
@@ -63,17 +74,38 @@ class FloorCoverEnv:
         self._visited: set = set()
         self._step_count = 0
         self._explored: np.ndarray = np.zeros((self.rows, self.cols), dtype=np.int32)
+        self._rng = random.Random()
+
+        # Gym-style space descriptors
+        obs_dim = 4 * self.rows * self.cols + 8
+        self.observation_space = SimpleNamespace(
+            shape=(obs_dim,),
+            dtype=np.float32,
+            low=np.zeros(obs_dim, dtype=np.float32),
+            high=np.ones(obs_dim, dtype=np.float32),
+        )
+        self.action_space = SimpleNamespace(
+            n=4,
+            dtype=np.int64,
+        )
 
     def _reveal(self, r: int, c: int) -> None:
         for nr, nc in [(r, c)] + [(r + dr, c + dc) for dr, dc in DIRECTIONS]:
             if 0 <= nr < self.rows and 0 <= nc < self.cols:
                 self._explored[nr, nc] = EXPLORED_FLOOR if self.room.is_floor(nr, nc) else EXPLORED_WALL
 
+    def seed(self, seed: Optional[int] = None) -> List[int]:
+        """Set the random seed for reproducibility (gym-compatible interface)."""
+        self._rng = random.Random(seed)
+        if seed is not None:
+            np.random.seed(seed)
+        return [seed]
+
     def reset(self, start: Optional[Tuple[int, int]] = None) -> Tuple[np.ndarray, dict]:
         if start is not None and self.room.is_floor(start[0], start[1]):
             self._pos = start
         else:
-            self._pos = random.choice(self.floor_cells)
+            self._pos = self._rng.choice(self.floor_cells)
         
         self._visited = {self._pos}
         self._step_count = 0
@@ -193,14 +225,14 @@ class PolicyNet(nn.Module):
 
     def save_weights(self, filename: str):
         torch.save(self.state_dict(), filename)
-        print(f"Weights saved to {filename}")
+        logger.info(f"Weights saved to {filename}")
 
     def load_weights(self, filename: str, device: torch.device):
         if os.path.exists(filename):
             self.load_state_dict(torch.load(filename, map_location=device))
-            print(f"Weights loaded from {filename}")
+            logger.info(f"Weights loaded from {filename}")
         else:
-            print(f"Weights file {filename} not found.")
+            logger.warning(f"Weights file {filename} not found.")
 
 
 class CNNPolicyNet(nn.Module):
@@ -294,14 +326,14 @@ class CNNPolicyNet(nn.Module):
 
     def save_weights(self, filename: str):
         torch.save(self.state_dict(), filename)
-        print(f"Weights saved to {filename}")
+        logger.info(f"Weights saved to {filename}")
 
     def load_weights(self, filename: str, device: torch.device):
         if os.path.exists(filename):
             self.load_state_dict(torch.load(filename, map_location=device))
-            print(f"Weights loaded from {filename}")
+            logger.info(f"Weights loaded from {filename}")
         else:
-            print(f"Weights file {filename} not found.")
+            logger.warning(f"Weights file {filename} not found.")
 
 
 # --- GNN Implementation ---
@@ -510,13 +542,13 @@ def train_reinforce(
     policy = None
     if MODEL_TYPE == "CNN":
         policy = CNNPolicyNet(room.rows, room.cols).to(device)
-        print(f"Initialized CNN Policy (Rows={room.rows}, Cols={room.cols})")
+        logger.info(f"Initialized CNN Policy (Rows={room.rows}, Cols={room.cols})")
     elif MODEL_TYPE == "GNN":
         policy = GNNPolicyNet(room.rows, room.cols).to(device)
-        print(f"Initialized GNN Policy (Nodes={room.rows*room.cols})")
+        logger.info(f"Initialized GNN Policy (Nodes={room.rows*room.cols})")
     else:
         policy = PolicyNet(env.obs_size).to(device)
-        print(f"Initialized MLP Policy (Input Size={env.obs_size})")
+        logger.info(f"Initialized MLP Policy (Input Size={env.obs_size})")
 
     
     if LOAD_EXISTING_WEIGHTS:
@@ -557,7 +589,7 @@ def train_reinforce(
         training_history = load_stats_json(stats_file)
         if training_history:
             start_episode = training_history[-1]['episode']
-            print(f"Resuming history from {stats_file}, episode {start_episode}")
+            logger.info(f"Resuming history from {stats_file}, episode {start_episode}")
 
     try:
         for episode_idx in range(num_episodes):
@@ -701,10 +733,10 @@ def train_reinforce(
             avg_reward = sum(recent_rewards) / len(recent_rewards) if recent_rewards else 0.0
 
             if episode % 100 == 0 or episode_idx == 0:
-                print(f"Episode {episode}: visited {n_visited}/{env.n_floor}, avg_reward_100={avg_reward:.2f}")
+                logger.info(f"Episode {episode}: visited {n_visited}/{env.n_floor}, avg_reward_100={avg_reward:.2f}")
 
     except KeyboardInterrupt:
-        print("\nTraining interrupted by user.")
+        logger.info("Training interrupted by user.")
     finally:
         if SAVE_WEIGHTS and TRAIN_MODE:
             policy.save_weights(WEIGHTS_FILE)
@@ -779,13 +811,13 @@ def evaluate_policy(room: RoomGraph, policy: PolicyNet, num_episodes: int = 5, d
 
             if done:
                 break
-        print(f"  Eval ep {ep + 1}: visited {info['visited']}/{env.n_floor} in {steps} steps")
+        logger.info(f"Eval ep {ep + 1}: visited {info['visited']}/{env.n_floor} in {steps} steps")
 
 
 def main():
-    room = build_random_room(rows=GRID_SIZE, cols=GRID_SIZE, add_walls=True, max_obstacle_ratio=OBSTACLE_PROB, rng=random.Random(42))
+    room = build_random_room(rows=GRID_SIZE, cols=GRID_SIZE, add_walls=True, max_obstacle_ratio=OBSTACLE_PROB, rng=random.Random(RANDOM_SEED))
     print("Floor cells:", len(room.floor_cells()))
-    policy = train_reinforce(room, num_episodes=NUM_EPISODES, lr=LR, gamma=GAMMA, seed=42)
+    policy = train_reinforce(room, num_episodes=NUM_EPISODES, lr=LR, gamma=GAMMA, seed=RANDOM_SEED)
     print("Evaluation (deterministic):")
     evaluate_policy(room, policy, num_episodes=5)
 

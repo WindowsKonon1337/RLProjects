@@ -152,11 +152,12 @@ def main():
     print(f"--- HEURISTIC BASELINE: {RUN_TAG} ---")
     print(f"HEADLESS={HEADLESS}, EPISODES={NUM_EPISODES}")
 
-    stats_json = os.path.join(prj1_dir, f"training_stats_{RUN_TAG}.json")
-    plot_png = os.path.join(prj1_dir, f"training_plot_{RUN_TAG}.png")
-    results_csv = os.path.join(prj1_dir, f"heuristic_results_{RUN_TAG}.csv")
+    results_dir = os.path.join(prj1_dir, "results")
+    os.makedirs(results_dir, exist_ok=True)
 
-    os.makedirs(prj1_dir, exist_ok=True)
+    stats_json = os.path.join(results_dir, f"training_stats_{RUN_TAG}.json")
+    plot_png = os.path.join(results_dir, f"training_plot_{RUN_TAG}.png")
+    results_csv = os.path.join(results_dir, f"heuristic_results_{RUN_TAG}.csv")
 
     training_history = []
 
