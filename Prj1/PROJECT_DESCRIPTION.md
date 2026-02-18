@@ -1,7 +1,3 @@
-<script type="text/javascript" async
-  src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML">
-</script>
-
 # Evolution of Agent Training (REINFORCE)
 
 ## 1. Task Overview
@@ -48,19 +44,47 @@
 - Learned **policy parameters** (logits/θ) that define action distribution.
 - Used episodic REINFORCE objective:
 
-$$G(\tau)\cdot \sum_t \nabla \log \pi(a_t \mid s_t)$$
+```math
+G(\tau)\cdot \sum_t \nabla \log \pi(a_t \mid s_t)
+```
 
-$$J(\theta)=\mathbb{E}_{\tau\sim\pi_\theta}[G(\tau)],\qquad G(\tau)=\sum_{t=0}^{T-1}\gamma^t r_t$$
+```math
+J(\theta)=\mathbb{E}_{\tau\sim\pi_\theta}[G(\tau)],\qquad G(\tau)=\sum_{t=0}^{T-1}\gamma^t r_t
+```
 
-$$\nabla_\theta J(\theta)= \mathbb{E}_{\tau\sim\pi_\theta} \left[ G(\tau)\sum_{t=0}^{T-1}\nabla_\theta\log\pi_\theta(a_t\mid s_t) \right]$$
+```math
+\nabla_\theta J(\theta)=
+\mathbb{E}_{\tau\sim\pi_\theta}
+\left[
+G(\tau)\sum_{t=0}^{T-1}\nabla_\theta\log\pi_\theta(a_t\mid s_t)
+\right]
+```
 
-$$\pi_\theta(a=i\mid s)= \frac{\exp(\theta_i(s))}{\sum_{j=1}^{4}\exp(\theta_j(s))}$$
+```math
+\pi_\theta(a=i\mid s)=
+\frac{\exp(\theta_i(s))}
+{\sum_{j=1}^{4}\exp(\theta_j(s))}
+```
 
-$$\pi_\theta(a=i\mid s)= \frac{m_i(s)\exp(\theta_i(s))}{\sum_{j=1}^{4}m_j(s)\exp(\theta_j(s))} \quad\text{(with action mask)}$$
+```math
+\pi_\theta(a=i\mid s)=
+\frac{m_i(s)\exp(\theta_i(s))}
+{\sum_{j=1}^{4}m_j(s)\exp(\theta_j(s))}
+\quad\text{(with action mask)}
+```
 
-$$\nabla_{\theta(s_t)}\log\pi_\theta(a_t\mid s_t) = y_t-\pi_\theta(\cdot\mid s_t)$$
+```math
+\nabla_{\theta(s_t)}\log\pi_\theta(a_t\mid s_t)
+= y_t-\pi_\theta(\cdot\mid s_t)
+```
 
-$$\theta\leftarrow\theta+\alpha g,\qquad g= \frac1N\sum_{k=1}^N G(\tau^{(k)}) \sum_t\nabla_\theta\log\pi_\theta(a_t^{(k)}\mid s_t^{(k)})$$
+```math
+\theta\leftarrow\theta+\alpha g,\qquad
+ g=
+\frac1N\sum_{k=1}^N
+G(\tau^{(k)})
+\sum_t\nabla_\theta\log\pi_\theta(a_t^{(k)}\mid s_t^{(k)})
+```
 
 ---
 
@@ -85,27 +109,37 @@ This caused conflicting updates and local loops.
 
 To reduce gradient variance, we used a **scalar baseline** equal to the **mean episodic return in the current batch**:
 
-$$b \;=\; \frac{1}{N}\sum_{k=1}^{N} G(\tau^{(k)}),$$
+```math
+b \;=\; \frac{1}{N}\sum_{k=1}^{N} G(\tau^{(k)}),
+```
 
 where:
-- \\(N\\) is the number of sampled episodes before one update,
-- \\(G(\tau^{(k)})\\) is the total discounted return of episode \\(k\\).
+- $N$ is the number of sampled episodes before one update,
+- $G(\tau^{(k)})$ is the total discounted return of episode $k$.
 
 Then each episode is weighted by the centered return (advantage-like term):
 
-$$A^{(k)} \;=\; G(\tau^{(k)}) - b.$$
+```math
+A^{(k)} \;=\; G(\tau^{(k)}) - b.
+```
 
 So the policy-gradient estimator becomes:
 
-$$\hat g \;=\; \frac{1}{N}\sum_{k=1}^{N} \left(G(\tau^{(k)})-b\right) \sum_{t=0}^{T_k-1}\nabla_\theta \log \pi_\theta(a_t^{(k)}\mid s_t^{(k)}).$$
+```math
+\hat g \;=\; \frac{1}{N}\sum_{k=1}^{N}
+\left(G(\tau^{(k)})-b\right)
+\sum_{t=0}^{T_k-1}\nabla_\theta \log \pi_\theta(a_t^{(k)}\mid s_t^{(k)}).
+```
 
 And the update is gradient ascent:
 
-$$\theta \leftarrow \theta + \alpha \hat g.$$
+```math
+\theta \leftarrow \theta + \alpha \hat g.
+```
 
 ### 6.2 Why This Baseline
-- It does **not** depend on the sampled action \\(a_t\\), so the estimator remains unbiased.
-- It significantly reduces variance compared to using raw \\(G(\tau)\\) only.
+- It does **not** depend on the sampled action $a_t$, so the estimator remains unbiased.
+- It significantly reduces variance compared to using raw $G(\tau)$ only.
 - It is simple and works well for episodic REINFORCE without adding a value-network.
 
 ---
@@ -146,7 +180,7 @@ The State Vector is formed by flattening multiple maps:
 4. **Current Position**: One-hot map of the agent's current position.
 5. **Local View**: 8 local features (is_floor, is_visited for 4 neighbors).
 
-Input dimension for MLP: \\(4 \times (Rows \times Cols) + 8\\).
+Input dimension for MLP: $4 \times (Rows \times Cols) + 8$.
 
 ### 9.2 Room Generation
 Procedural generation (`build_random_room`) with connectivity check (`is_floor_connected`) is used:
@@ -164,14 +198,14 @@ Procedural generation (`build_random_room`) with connectivity check (`is_floor_c
 
 ### 10.1 Architecture
 Simple fully connected network:
-1. **Input**: Vector of dimension \\(N_{obs} = 4HW + 8\\).
-2. **Hidden Layer 1**: Linear(\\(N_{obs} \to 128\\)) + ReLU.
-3. **Hidden Layer 2**: Linear(\\(128 \to 128\\)) + ReLU.
-4. **Output Layer**: Linear(\\(128 \to 4\\)) — logits for 4 actions (UP, DOWN, RIGHT, LEFT).
+1. **Input**: Vector of dimension $N_{obs} = 4HW + 8$.
+2. **Hidden Layer 1**: Linear( $N_{obs} \to 128$ ) + ReLU.
+3. **Hidden Layer 2**: Linear( $128 \to 128$ ) + ReLU.
+4. **Output Layer**: Linear( $128 \to 4$ ) — logits for 4 actions (UP, DOWN, RIGHT, LEFT).
 
 ### 10.2 Training
 Uses the same REINFORCE algorithm.
-- **Masking**: Logits of actions leading into walls are forcibly set to \\(-\infty\\) (\\(-1e9\\)) so that `softmax` gives them 0 probability.
+- **Masking**: Logits of actions leading into walls are forcibly set to $-\infty$ ($-1\text{e}9$) so that `softmax` gives them 0 probability.
 
 ### 10.3 Results
 
@@ -183,7 +217,7 @@ Uses the same REINFORCE algorithm.
 
 ### 11.1 Architecture
 A convolutional network is used to handle spatial structure (grid).
-**Input**: Tensor of size \\((B, 6, H, W)\\). Channels:
+**Input**: Tensor of size $(B, 6, H, W)$. Channels:
 1. Explored Floor
 2. Explored Wall
 3. Visited Map
@@ -194,15 +228,15 @@ A convolutional network is used to handle spatial structure (grid).
 **Structure**:
 1. **Spatial Branch**:
    - 3 layers `Conv2d` (3×3, stride=1, padding=1) + BatchNorm + ReLU.
-   - Channels: \\(6 \to 32 \to 64 \to 64\\).
-   - Preserves map dimensions \\((H, W)\\).
+   - Channels: $6 \to 32 \to 64 \to 64$.
+   - Preserves map dimensions $(H, W)$.
    - Output splits into:
      - **Flatten + Linear**: Projection of map features (256 dim).
      - **Global Avg Pool**: Global context (64 dim).
 2. **Local Branch**:
    - Processing of 8 local features via a `Linear` layer (32 dim).
 3. **Fusion**:
-   - Concatenation of all branches: \\(256 + 64 + 32 = 352\\) features.
+   - Concatenation of all branches: $256 + 64 + 32 = 352$ features.
 4. **Head**:
    - `Linear(352 → Hidden) → ReLU → Linear(Hidden → 4)`.
 
