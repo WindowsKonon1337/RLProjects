@@ -10,10 +10,10 @@ OBSTACLE = 1
 
 UP, DOWN, RIGHT, LEFT = 0, 1, 2, 3
 DIRECTIONS = [
-    (-1, 0),  # UP
-    (1, 0),   # DOWN
-    (0, 1),   # RIGHT
-    (0, -1),  # LEFT
+    (-1, 0),
+    (1, 0),
+    (0, 1),
+    (0, -1),
 ]
 
 
@@ -267,9 +267,9 @@ def build_random_room(
             rng=rng,
         )
         interior_obstacles = g.obstacle_count() - wall_count
-        # if interior_obstacles > interior_cells * max_obstacle_ratio:
-        #     ratio *= ratio_decay
-        #     continue
+
+
+
         if not g.is_floor_connected():
             ratio *= ratio_decay
             continue

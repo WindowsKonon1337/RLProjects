@@ -8,7 +8,7 @@ import importlib
 import numpy as np
 
 
-# ---------- utils ----------
+
 def safe_import(module_names, attr=None):
     """
     Try import module from list. Optionally get attr/class from module.
@@ -27,14 +27,14 @@ def safe_import(module_names, attr=None):
     return None
 
 
-# ---------- PATH ----------
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 prj1_dir = os.path.join(current_dir, "Prj1")
 if prj1_dir not in sys.path:
     sys.path.append(prj1_dir)
 
 
-# ---------- CONFIG ----------
+
 config = safe_import(["Prj1.config", "config"])
 if not config:
     print("Config not found, abort.")
@@ -55,7 +55,7 @@ PLOT_TRAINING_CURVE = getattr(config, "PLOT_TRAINING_CURVE", True)
 ENABLE_LOGGING = getattr(config, "ENABLE_LOGGING", True)
 
 
-# ---------- PROJECT IMPORTS ----------
+
 room_graph_mod = safe_import(["Prj1.room_graph", "room_graph"])
 if not room_graph_mod:
     sys.exit(1)
@@ -82,7 +82,7 @@ except Exception:
     pass
 
 
-# ---------- DFS AGENT ----------
+
 class GreedyDFSAgent:
     def __init__(self):
         self.stack = []
@@ -152,11 +152,12 @@ def main():
     print(f"--- HEURISTIC BASELINE: {RUN_TAG} ---")
     print(f"HEADLESS={HEADLESS}, EPISODES={NUM_EPISODES}")
 
-    stats_json = os.path.join(prj1_dir, f"training_stats_{RUN_TAG}.json")
-    plot_png = os.path.join(prj1_dir, f"training_plot_{RUN_TAG}.png")
-    results_csv = os.path.join(prj1_dir, f"heuristic_results_{RUN_TAG}.csv")
+    results_dir = os.path.join(prj1_dir, "results")
+    os.makedirs(results_dir, exist_ok=True)
 
-    os.makedirs(prj1_dir, exist_ok=True)
+    stats_json = os.path.join(results_dir, f"training_stats_{RUN_TAG}.json")
+    plot_png = os.path.join(results_dir, f"training_plot_{RUN_TAG}.png")
+    results_csv = os.path.join(results_dir, f"heuristic_results_{RUN_TAG}.csv")
 
     training_history = []
 
