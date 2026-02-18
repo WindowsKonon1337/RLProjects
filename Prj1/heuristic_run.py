@@ -8,7 +8,7 @@ import importlib
 import numpy as np
 
 
-# ---------- utils ----------
+
 def safe_import(module_names, attr=None):
     """
     Try import module from list. Optionally get attr/class from module.
@@ -27,14 +27,14 @@ def safe_import(module_names, attr=None):
     return None
 
 
-# ---------- PATH ----------
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 prj1_dir = os.path.join(current_dir, "Prj1")
 if prj1_dir not in sys.path:
     sys.path.append(prj1_dir)
 
 
-# ---------- CONFIG ----------
+
 config = safe_import(["Prj1.config", "config"])
 if not config:
     print("Config not found, abort.")
@@ -55,7 +55,7 @@ PLOT_TRAINING_CURVE = getattr(config, "PLOT_TRAINING_CURVE", True)
 ENABLE_LOGGING = getattr(config, "ENABLE_LOGGING", True)
 
 
-# ---------- PROJECT IMPORTS ----------
+
 room_graph_mod = safe_import(["Prj1.room_graph", "room_graph"])
 if not room_graph_mod:
     sys.exit(1)
@@ -82,7 +82,7 @@ except Exception:
     pass
 
 
-# ---------- DFS AGENT ----------
+
 class GreedyDFSAgent:
     def __init__(self):
         self.stack = []

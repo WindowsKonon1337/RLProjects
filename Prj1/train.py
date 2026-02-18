@@ -10,13 +10,13 @@ import random
 import sys
 import os
 
-# ── Override config before importing anything else ──────────────────────────
+
 import config as _cfg
 _cfg.TRAIN_MODE = True
 _cfg.SAVE_WEIGHTS = True
-_cfg.LOAD_EXISTING_WEIGHTS = False   # start fresh; change manually if resuming
+_cfg.LOAD_EXISTING_WEIGHTS = False
 
-# ── Now import the rest (they will see the patched config via `from config import *`) ──
+
 from config import (
     GRID_SIZE, OBSTACLE_PROB, NUM_EPISODES, LR, GAMMA,
     RANDOM_SEED, LOG_FILE, LOG_LEVEL, ENABLE_LOGGING, MODEL_TYPE,
@@ -31,12 +31,12 @@ def setup_logger() -> logging.Logger:
     logger.setLevel(getattr(logging, LOG_LEVEL.upper(), logging.INFO))
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
-    # Console handler
+
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(fmt)
     logger.addHandler(ch)
 
-    # File handler (optional)
+
     if ENABLE_LOGGING and LOG_FILE:
         os.makedirs(os.path.dirname(LOG_FILE) if os.path.dirname(LOG_FILE) else ".", exist_ok=True)
         fh = logging.FileHandler(LOG_FILE, mode="a", encoding="utf-8")

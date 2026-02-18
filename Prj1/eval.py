@@ -10,20 +10,18 @@ import random
 import sys
 import os
 
-# ── Override config before importing anything else ──────────────────────────
 import config as _cfg
 _cfg.TRAIN_MODE = False
 _cfg.LOAD_EXISTING_WEIGHTS = True
-_cfg.SAVE_WEIGHTS = False            # never overwrite weights during eval
+_cfg.SAVE_WEIGHTS = False           
 
-# ── Now import the rest ──────────────────────────────────────────────────────
 from config import (
     GRID_SIZE, OBSTACLE_PROB, EVAL_EPISODES, LR, GAMMA,
     RANDOM_SEED, LOG_FILE, LOG_LEVEL, ENABLE_LOGGING,
     WEIGHTS_FILE, MODEL_TYPE, FPS, AUTO_STEP_DELAY, ENABLE_VISUALIZATION,
 )
 from room_graph import build_random_room
-from reinforce_cover import train_reinforce   # reuses the same loop in inference mode
+from reinforce_cover import train_reinforce   
 
 
 def setup_logger() -> logging.Logger:
@@ -63,7 +61,6 @@ def main():
     )
     logger.info(f"Room built. Floor cells: {len(room.floor_cells())}")
 
-    # Run inference episodes via the same train_reinforce loop (TRAIN_MODE=False disables updates)
     train_reinforce(
         room,
         num_episodes=EVAL_EPISODES,

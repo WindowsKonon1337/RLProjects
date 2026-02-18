@@ -10,19 +10,19 @@ from typing import List, Tuple, Optional
 from collections import deque
 from types import SimpleNamespace
 
-# Import config
+
 from config import *
 
-# Module-level logger — configured by train.py / eval.py, or falls back to root logger
+
 logger = logging.getLogger("rl")
 if not logger.handlers:
-    # Fallback: basic console handler when run directly
+
     _ch = logging.StreamHandler(sys.stdout)
     _ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"))
     logger.addHandler(_ch)
     logger.setLevel(logging.INFO)
 
-# Import visualization if needed
+
 try:
     import pygame
     from visualization import init_pygame, draw_grid
@@ -30,7 +30,7 @@ except ImportError:
     logger.warning("Pygame not found. Visualization disabled.")
     ENABLE_VISUALIZATION = False
 
-# Import plotting utils
+
 try:
     from visualization_utils import plot_training_results, save_stats_json, load_stats_json
 except ImportError:
@@ -76,7 +76,7 @@ class FloorCoverEnv:
         self._explored: np.ndarray = np.zeros((self.rows, self.cols), dtype=np.int32)
         self._rng = random.Random()
 
-        # Gym-style space descriptors
+
         obs_dim = 4 * self.rows * self.cols + 8
         self.observation_space = SimpleNamespace(
             shape=(obs_dim,),
@@ -106,7 +106,7 @@ class FloorCoverEnv:
             self._pos = start
         else:
             self._pos = self._rng.choice(self.floor_cells)
-        
+
         self._visited = {self._pos}
         self._step_count = 0
         self._explored.fill(UNKNOWN)
@@ -127,20 +127,20 @@ class FloorCoverEnv:
     def _get_obs(self) -> np.ndarray:
         explored_floor = (self._explored == EXPLORED_FLOOR).astype(np.float32)
         explored_wall = (self._explored == EXPLORED_WALL).astype(np.float32)
-        
-        # New: visited map (binary) for global CNN
+
+
         visited_map = np.zeros((self.rows, self.cols), dtype=np.float32)
         for r, c in self._visited:
             visited_map[r, c] = 1.0
-            
+
         current = np.zeros((self.rows, self.cols), dtype=np.float32)
         current[self._pos[0], self._pos[1]] = 1.0
         local = self._get_local_view()
-        
+
         obs = np.concatenate([
             explored_floor.ravel(),
             explored_wall.ravel(),
-            visited_map.ravel(), # Added visited map
+            visited_map.ravel(),
             current.ravel(),
             local,
         ])
@@ -148,12 +148,12 @@ class FloorCoverEnv:
 
     @property
     def obs_size(self) -> int:
-        # 4 full grids (explored_floor, explored_wall, visited_map, current_pos) + 8 local vars
+
         return 4 * self.rows * self.cols + 8
 
     def _get_info(self) -> dict:
         return {
-            "visited": len(self._visited), 
+            "visited": len(self._visited),
             "n_floor": self.n_floor,
             "agent_pos": self._pos,
             "visited_set": self._visited.copy()
@@ -175,7 +175,7 @@ class FloorCoverEnv:
         reward = self.reward_step
 
         if not self.room.is_floor(nr, nc):
-            # Wall hit: reward remains just the step penalty
+
             done = False
         else:
             self._pos = (nr, nc)
@@ -240,28 +240,28 @@ class CNNPolicyNet(nn.Module):
         super().__init__()
         self.rows = rows
         self.cols = cols
-        
+
         self.input_channels = 6
-        
+
         self.conv1 = nn.Conv2d(self.input_channels, 32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(32)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(64)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
         self.bn3 = nn.BatchNorm2d(64)
-        
+
         self.flat_spatial_size = 64 * rows * cols
         self.spatial_proj = nn.Linear(self.flat_spatial_size, 256)
-        
+
         self.gap = nn.AdaptiveAvgPool2d((1, 1))
         self.gap_size = 64
-        
+
         self.local_fc = nn.Linear(8, 32)
-        
+
         fusion_size = 256 + 64 + 32
         self.fc1 = nn.Linear(fusion_size, hidden)
-        self.fc2 = nn.Linear(hidden, 4) # Action logits
-        
+        self.fc2 = nn.Linear(hidden, 4)
+
         self._init_weights()
 
     def _init_weights(self):
@@ -274,41 +274,41 @@ class CNNPolicyNet(nn.Module):
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         batch_size = x.shape[0]
         device = x.device
-        
+
         global_size = 4 * self.rows * self.cols
         global_part = x[:, :global_size]
-        local_part = x[:, global_size:] 
-        
+        local_part = x[:, global_size:]
+
         global_view = global_part.view(batch_size, 4, self.rows, self.cols)
-        
+
         xx = torch.linspace(0, 1, self.cols, device=device)
         yy = torch.linspace(0, 1, self.rows, device=device)
         grid_y, grid_x = torch.meshgrid(yy, xx, indexing='ij')
-        
+
         coords = torch.stack([grid_y, grid_x], dim=0).unsqueeze(0).expand(batch_size, -1, -1, -1)
-        
+
         x_in = torch.cat([global_view, coords], dim=1)
-        
+
         h = F.relu(self.bn1(self.conv1(x_in)))
         h = F.relu(self.bn2(self.conv2(h)))
         h = F.relu(self.bn3(self.conv3(h)))
-        
+
         spatial_flat = h.view(batch_size, -1)
         spatial_proj = F.relu(self.spatial_proj(spatial_flat))
-        
+
         global_ctx = self.gap(h).view(batch_size, -1)
-        
+
         local_feat = F.relu(self.local_fc(local_part))
-        
+
         combined = torch.cat([spatial_proj, global_ctx, local_feat], dim=1)
-        
+
         h_fc = F.relu(self.fc1(combined))
-        
+
         logits = self.fc2(h_fc) * LOGIT_SCALE
-        
+
         if mask is not None:
             logits = logits.masked_fill(mask <= 0.5, -1e9)
-            
+
         return logits
 
     def get_action(self, x: torch.Tensor, mask: torch.Tensor, deterministic: bool = False) -> Tuple[int, torch.Tensor]:
@@ -336,7 +336,7 @@ class CNNPolicyNet(nn.Module):
             logger.warning(f"Weights file {filename} not found.")
 
 
-# --- GNN Implementation ---
+
 
 def get_grid_adjacency(rows: int, cols: int, device: torch.device) -> torch.Tensor:
     """
@@ -344,11 +344,11 @@ def get_grid_adjacency(rows: int, cols: int, device: torch.device) -> torch.Tens
     Returns normalized adjacency matrix (D^-0.5 * A * D^-0.5).
     """
     num_nodes = rows * cols
-    adj = torch.eye(num_nodes, device=device) # Start with self-loops
-    
+    adj = torch.eye(num_nodes, device=device)
+
     def get_idx(r, c):
         return r * cols + c
-        
+
     for r in range(rows):
         for c in range(cols):
             curr_idx = get_idx(r, c)
@@ -357,13 +357,13 @@ def get_grid_adjacency(rows: int, cols: int, device: torch.device) -> torch.Tens
                 if 0 <= nr < rows and 0 <= nc < cols:
                     neighbor_idx = get_idx(nr, nc)
                     adj[curr_idx, neighbor_idx] = 1.0
-                    
-    # Normalize: D^-0.5 * A * D^-0.5
+
+
     degrees = adj.sum(dim=1)
     d_inv_sqrt = torch.pow(degrees, -0.5)
     d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.0
     d_mat_inv_sqrt = torch.diag(d_inv_sqrt)
-    
+
     norm_adj = d_mat_inv_sqrt @ adj @ d_mat_inv_sqrt
     return norm_adj
 
@@ -371,21 +371,21 @@ class GCNLayer(nn.Module):
     def __init__(self, in_features: int, out_features: int):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features, bias=False)
-        
+
     def forward(self, x: torch.Tensor, adj: torch.Tensor) -> torch.Tensor:
-        # x: (Batch, Nodes, Features)
-        # adj: (Nodes, Nodes) - assumed shared across batch or (Batch, Nodes, Nodes)
-        
-        # 1. Linear Transform: X * W
-        out = self.linear(x) 
-        
-        # 2. Message Passing: A * (XW)
-        # Check if batch
+
+
+
+
+        out = self.linear(x)
+
+
+
         if adj.dim() == 2:
-            out = torch.matmul(adj, out) # Broadcast adj over batch
+            out = torch.matmul(adj, out)
         else:
             out = torch.bmm(adj, out)
-            
+
         return out
 
 class GNNPolicyNet(nn.Module):
@@ -394,32 +394,32 @@ class GNNPolicyNet(nn.Module):
         self.rows = rows
         self.cols = cols
         self.num_nodes = rows * cols
-        
-        # Inputs: Floor(1), Wall(1), Visited(1), Agent(1), CoordX(1), CoordY(1) = 6
+
+
         self.input_features = 6
-        
-        # Adjacency matrix (computed lazily or stored buffer)
+
+
         self.register_buffer('adj', None)
-        
+
         # GCN Layers
         self.gcn1 = GCNLayer(self.input_features, hidden)
         self.gcn2 = GCNLayer(hidden, hidden)
         self.gcn3 = GCNLayer(hidden, hidden)
-        
+
         # Readout & Policy
         # We concat [GlobalMeanPool, AgentNodeEmbedding]
         self.fc1 = nn.Linear(hidden + hidden, 128)
         self.fc2 = nn.Linear(128, 4)
-        
+
         self._init_weights()
-        
+
     def _init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=nn.init.calculate_gain('relu'))
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-                    
+
     def _ensure_adj(self, device):
         if self.adj is None:
             self.adj = get_grid_adjacency(self.rows, self.cols, device)
@@ -427,63 +427,63 @@ class GNNPolicyNet(nn.Module):
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         # x input is flattened vector from environment: (Batch, obs_size)
         # We need to reshape/process it into (Batch, Nodes, Features)
-        
+
         batch_size = x.shape[0]
         device = x.device
         self._ensure_adj(device)
-        
+
         # 1. Parse Input
         # Obs: [ExploreFloor(N), ExploreWall(N), Visited(N), Agent(N), Local(8)]
-        # We ignore Local(8) for the graph part, or append it? 
+        # We ignore Local(8) for the graph part, or append it?
         # Plan: Use the 4 grid maps + Generate Coords
-        
+
         grid_size = 4 * self.num_nodes
         grid_part = x[:, :grid_size].view(batch_size, 4, self.num_nodes)
         # grid_part shape: (B, 4, N)
         # We want (B, N, 4)
-        node_features = grid_part.permute(0, 2, 1) 
-        
+        node_features = grid_part.permute(0, 2, 1)
+
         # Add Coords
         xx = torch.linspace(0, 1, self.cols, device=device)
         yy = torch.linspace(0, 1, self.rows, device=device)
         grid_y, grid_x = torch.meshgrid(yy, xx, indexing='ij')
-        coords = torch.stack([grid_y.flatten(), grid_x.flatten()], dim=1) # (N, 2)
-        coords = coords.unsqueeze(0).expand(batch_size, -1, -1) # (B, N, 2)
-        
-        # Combine -> (B, N, 6)
+        coords = torch.stack([grid_y.flatten(), grid_x.flatten()], dim=1)
+        coords = coords.unsqueeze(0).expand(batch_size, -1, -1)
+
+
         h = torch.cat([node_features, coords], dim=-1)
-        
-        # 2. GCN Layers
+
+
         h = F.relu(self.gcn1(h, self.adj))
         h = F.relu(self.gcn2(h, self.adj))
-        h = F.relu(self.gcn3(h, self.adj)) # (B, N, hidden)
-        
-        # 3. Readout
-        # A. Global Pooling (Mean)
-        global_ctx = h.mean(dim=1) # (B, hidden)
-        
-        # B. Agent Node Embedding
-        # Find agent index from input x (channel 3 is agent pos)
-        # agent_map = x[:, 3*N : 4*N] -> argmax
-        agent_global_idx = x[:, 3*self.num_nodes : 4*self.num_nodes].argmax(dim=1) # (B,)
-        
-        # Gather embedding from h using batch index
-        # h: (B, N, H)
-        agent_embed = h[torch.arange(batch_size), agent_global_idx] # (B, H)
-        
-        # 4. Fusion
-        combined = torch.cat([global_ctx, agent_embed], dim=1) # (B, 2*H)
-        
-        # 5. Policy Head
+        h = F.relu(self.gcn3(h, self.adj))
+
+
+
+        global_ctx = h.mean(dim=1)
+
+
+
+
+        agent_global_idx = x[:, 3*self.num_nodes : 4*self.num_nodes].argmax(dim=1)
+
+
+
+        agent_embed = h[torch.arange(batch_size), agent_global_idx]
+
+
+        combined = torch.cat([global_ctx, agent_embed], dim=1)
+
+
         h_fc = F.relu(self.fc1(combined))
         logits = self.fc2(h_fc) * LOGIT_SCALE
-        
+
         if mask is not None:
             logits = logits.masked_fill(mask <= 0.5, -1e9)
-            
+
         return logits
-        
-    # Standard Policy methods interface
+
+
     def get_action(self, x: torch.Tensor, mask: torch.Tensor, deterministic: bool = False) -> Tuple[int, torch.Tensor]:
         with torch.no_grad():
             logits = self.forward(x, mask)
@@ -538,7 +538,7 @@ def train_reinforce(
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     env = FloorCoverEnv(room, max_steps=max_steps)
-    
+
     policy = None
     if MODEL_TYPE == "CNN":
         policy = CNNPolicyNet(room.rows, room.cols).to(device)
@@ -550,10 +550,10 @@ def train_reinforce(
         policy = PolicyNet(env.obs_size).to(device)
         logger.info(f"Initialized MLP Policy (Input Size={env.obs_size})")
 
-    
+
     if LOAD_EXISTING_WEIGHTS:
         policy.load_weights(WEIGHTS_FILE, device)
-        
+
     optimizer = None
     if MODEL_TYPE == "CNN":
         optimizer = torch.optim.Adam([
@@ -575,15 +575,15 @@ def train_reinforce(
     small_font = None
     tiny_font = None
     clock = None
-    
+
     if ENABLE_VISUALIZATION:
         screen, font, small_font, tiny_font, clock = init_pygame()
-        
-    auto_mode = False 
+
+    auto_mode = False
 
     training_history: List[dict] = []
     start_episode = 0
-    
+
     if LOAD_EXISTING_WEIGHTS:
         stats_file = TRAINING_STATS_FILE if TRAIN_MODE else INFERENCE_STATS_FILE
         training_history = load_stats_json(stats_file)
@@ -594,30 +594,30 @@ def train_reinforce(
     try:
         for episode_idx in range(num_episodes):
             episode = start_episode + episode_idx + 1
-            
+
             current_room = build_random_room(
-                rows=room.rows, 
-                cols=room.cols, 
-                add_walls=True, 
-                max_obstacle_ratio=OBSTACLE_PROB, 
-                rng=random.Random() 
+                rows=room.rows,
+                cols=room.cols,
+                add_walls=True,
+                max_obstacle_ratio=OBSTACLE_PROB,
+                rng=random.Random()
             )
-            
+
             env = FloorCoverEnv(current_room, max_steps=max_steps)
 
-            obs, _ = env.reset() 
+            obs, _ = env.reset()
             traj_log_probs: List[torch.Tensor] = []
             rewards: List[float] = []
-            
+
             step = 0
             G = 0.0
             reset_requested = False
 
             while True:
                 step_once = False
-                
+
                 manual_action = None
-                
+
                 if ENABLE_VISUALIZATION:
                     for event in pygame.event.get():
                         if event.type == pygame.QUIT:
@@ -629,25 +629,25 @@ def train_reinforce(
                                 sys.exit()
                             if event.key == pygame.K_SPACE:
                                 if auto_mode:
-                                    auto_mode = False 
+                                    auto_mode = False
                                 else:
                                     step_once = True
                             if event.key == pygame.K_a:
                                 auto_mode = not auto_mode
                             if event.key == pygame.K_r:
                                 reset_requested = True
-                                
+
                             if event.key == pygame.K_UP:
-                                manual_action = RIGHT 
+                                manual_action = RIGHT
                             elif event.key == pygame.K_DOWN:
-                                manual_action = LEFT 
+                                manual_action = LEFT
                             elif event.key == pygame.K_LEFT:
                                 manual_action = UP
                             elif event.key == pygame.K_RIGHT:
-                                manual_action = DOWN 
-                
+                                manual_action = DOWN
+
                 if reset_requested:
-                    break 
+                    break
 
                 should_step = auto_mode or step_once or (manual_action is not None)
 
@@ -657,30 +657,30 @@ def train_reinforce(
                         'agent_pos': state_info['agent_pos'],
                         'visited': state_info['visited_set'],
                     }
-                    
+
                     x = torch.from_numpy(obs).float().unsqueeze(0).to(device)
                     mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
                     with torch.no_grad():
                         logits = policy(x, mask)
                         probs = F.softmax(logits, dim=-1).cpu().numpy()[0]
-                    
+
                     draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, episode, True, step, action_probs=probs)
                     clock.tick(FPS)
                     continue
 
                 x = torch.from_numpy(obs).float().unsqueeze(0).to(device)  # (1, obs_size)
                 mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
-                
+
                 if manual_action is not None:
                      action = manual_action
 
-                     logits = policy(x, mask=None) 
+                     logits = policy(x, mask=None)
                      log_prob = F.log_softmax(logits, dim=-1)[0, action]
                 else:
                     action, log_prob = policy.get_action(x, mask, deterministic=False)
-                
+
                 traj_log_probs.append(log_prob)
-                
+
                 probs = None
                 if ENABLE_VISUALIZATION:
                      with torch.no_grad():
@@ -691,7 +691,7 @@ def train_reinforce(
                 rewards.append(reward)
                 G += reward
                 step += 1
-                
+
                 if ENABLE_VISUALIZATION:
                     state_info = info
                     vis_state = {
@@ -699,7 +699,7 @@ def train_reinforce(
                         'visited': state_info['visited_set'],
                     }
                     if episode < HEADLESS_EPISODES:
-                         pygame.event.pump() # Keep window responsive
+                         pygame.event.pump()
                     else:
                         draw_grid(screen, font, small_font, tiny_font, env.room, vis_state, G, episode, False, step, action_probs=probs)
                         pygame.display.flip()
@@ -708,7 +708,7 @@ def train_reinforce(
 
                 if done:
                     break
-            
+
             if TRAIN_MODE:
                 returns = compute_returns(rewards, gamma=gamma)
                 baseline = sum(returns) / len(returns) if returns else 0.0
@@ -718,11 +718,11 @@ def train_reinforce(
                 optimizer.zero_grad()
                 policy_loss.backward()
                 optimizer.step()
-            
+
             n_visited = env._get_info()["visited"]
             total_reward = sum(rewards)
             visited_ratio = n_visited / env.n_floor
-            
+
             training_history.append({
                 'episode': episode,
                 'reward': total_reward,
@@ -740,7 +740,7 @@ def train_reinforce(
     finally:
         if SAVE_WEIGHTS and TRAIN_MODE:
             policy.save_weights(WEIGHTS_FILE)
-            
+
         if training_history:
             stats_file = TRAINING_STATS_FILE if TRAIN_MODE else INFERENCE_STATS_FILE
             save_stats_json(training_history, stats_file)
@@ -754,24 +754,24 @@ def train_reinforce(
 def evaluate_policy(room: RoomGraph, policy: PolicyNet, num_episodes: int = 5, device: Optional[torch.device] = None) -> None:
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
+
     policy.eval()
-    
+
     screen = None
     if ENABLE_VISUALIZATION:
          screen, font, small_font, tiny_font, clock = init_pygame()
-         
+
     for ep in range(num_episodes):
         current_room = build_random_room(
-            rows=room.rows, 
-            cols=room.cols, 
-            add_walls=True, 
+            rows=room.rows,
+            cols=room.cols,
+            add_walls=True,
             max_obstacle_ratio=OBSTACLE_PROB,
-            rng=random.Random() 
+            rng=random.Random()
         )
-        
+
         env = FloorCoverEnv(current_room)
-        
+
         obs, _ = env.reset()
         steps = 0
         G = 0.0
@@ -788,17 +788,17 @@ def evaluate_policy(room: RoomGraph, policy: PolicyNet, num_episodes: int = 5, d
             x = torch.from_numpy(obs).float().unsqueeze(0).to(device)
             mask = torch.from_numpy(env.get_action_mask()).float().unsqueeze(0).to(device)
             action, _ = policy.get_action(x, mask, deterministic=True)
-            
+
             probs = None
             if ENABLE_VISUALIZATION:
                 with torch.no_grad():
                     logits = policy(x, mask)
                     probs = F.softmax(logits, dim=-1).cpu().numpy()[0]
-                    
+
             obs, reward, done, _, info = env.step(action)
             steps += 1
             G += reward
-            
+
             if ENABLE_VISUALIZATION:
                 state_info = info
                 vis_state = {

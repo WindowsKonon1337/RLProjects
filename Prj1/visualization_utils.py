@@ -5,7 +5,7 @@ import json
 import os
 from typing import List, Dict
 
-# Use Agg backend to avoid GUI requirement (headless friendly)
+
 matplotlib.use('Agg')
 
 def plot_training_results(history: List[Dict], filename: str):
@@ -27,7 +27,7 @@ def plot_training_results(history: List[Dict], filename: str):
     # Plot 1: Total Reward
     plt.subplot(1, 2, 1)
     plt.plot(episodes, rewards, label='Total Reward', color='blue', alpha=0.7)
-    
+
     # Calculate moving average (window 20)
     if len(rewards) >= 20:
         ma = []
@@ -36,7 +36,7 @@ def plot_training_results(history: List[Dict], filename: str):
             start = max(0, i - window + 1)
             ma.append(sum(rewards[start:i+1]) / (i - start + 1))
         plt.plot(episodes, ma, label='Moving Avg (20)', color='orange', linewidth=2)
-        
+
     plt.xlabel('Episode')
     plt.ylabel('Total Reward')
     plt.title('Training Reward Curve')
